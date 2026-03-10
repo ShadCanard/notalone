@@ -106,28 +106,6 @@ export default function EditProfile() {
           <Stack>
             <TextInput label="Prénom" {...form.getInputProps('firstName')} />
             <TextInput label="Nom" {...form.getInputProps('lastName')} />
-            <Group align="flex-end">
-              <TextInput label="Avatar (URL)" placeholder="https://..." sx={{ flex: 1 }} {...form.getInputProps('avatar')} />
-              <FileButton
-                onChange={(file) => {
-                  if (!file) return;
-                  uploadAvatar.mutate(file, {
-                    onSuccess: (data: any) => {
-                      form.setFieldValue('avatar', data.url || '');
-                      notifications.show({ title: 'Avatar téléchargé', message: 'L\'avatar a été uploadé', color: 'green' });
-                    },
-                    onError: () => notifications.show({ title: 'Erreur', message: 'Échec de l\'upload', color: 'red' }),
-                  });
-                }}
-                accept="image/*"
-              >
-                {(props) => (
-                  <Button {...props} loading={uploadAvatar.isLoading} color="gray">
-                    Télécharger
-                  </Button>
-                )}
-              </FileButton>
-            </Group>
             <Textarea label="Bio" minRows={3} {...form.getInputProps('bio')} />
 
             <Button type="submit" color="pastelBlue" loading={updateProfile.isPending}>
