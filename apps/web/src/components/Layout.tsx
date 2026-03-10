@@ -1,6 +1,6 @@
 import { AppShell, Group, Title, Button, Avatar, Menu, UnstyledButton, Text, Burger, Stack } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconHeart, IconUser, IconLogout, IconHome, IconMessageCircle, IconShieldCheck } from '@tabler/icons-react';
+import { IconHeart, IconUser, IconLogout, IconHome, IconMessageCircle, IconShieldCheck, IconSettings, IconBell } from '@tabler/icons-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/router';
 import type { ReactNode } from 'react';
@@ -22,15 +22,9 @@ export default function Layout({ children }: LayoutProps) {
   return (
     <AppShell
       header={{ height: 70 }}
-      navbar={{
-        width: 250,
-        breakpoint: 'sm',
-        collapsed: { mobile: !opened },
-      }}
-      padding="md"
       styles={{
         main: {
-          background: '#FFF8F0',
+          background: '#F0F8FF',
           minHeight: '100vh',
         },
         header: {
@@ -55,6 +49,29 @@ export default function Layout({ children }: LayoutProps) {
             </Group>
           </Group>
 
+          <Group style={{ margin: '0 auto' }} gap="md">
+            <Button variant="subtle" onClick={() => router.push('/')}>
+              <Group gap="xs">
+                <IconHome size={18} color="white" />
+                <Text c="white">Accueil</Text>
+              </Group>
+            </Button>
+
+            <Button variant="subtle" onClick={() => router.push('/profile')}>
+              <Group gap="xs">
+                <IconUser size={18} color="white" />
+                <Text c="white">Mon Profil</Text>
+              </Group>
+            </Button>
+
+            <Button variant="subtle" onClick={() => router.push('/notifications')}>
+              <Group gap="xs">
+                <IconBell size={18} color="white" />
+                <Text c="white">Notifications</Text>
+              </Group>
+            </Button>
+          </Group>
+
           {isAuthenticated ? (
             <Menu shadow="md" width={200}>
               <Menu.Target>
@@ -77,11 +94,8 @@ export default function Layout({ children }: LayoutProps) {
               </Menu.Target>
 
               <Menu.Dropdown>
-                <Menu.Item leftSection={<IconUser size={14} />} onClick={() => router.push('/profile')}>
-                  Mon Profil
-                </Menu.Item>
-                <Menu.Item leftSection={<IconMessageCircle size={14} />} onClick={() => router.push('/messages')}>
-                  Messages
+                <Menu.Item leftSection={<IconSettings size={14} />} onClick={() => router.push('/settings')}>
+                  Paramètres
                 </Menu.Item>
                 {user?.role === 'ADMIN' && (
                   <>
@@ -110,55 +124,22 @@ export default function Layout({ children }: LayoutProps) {
         </Group>
       </AppShell.Header>
 
-      <AppShell.Navbar p="md">
-        <Stack gap="xs">
-          <Button
-            variant={router.pathname === '/' ? 'light' : 'subtle'}
-            color="pastelBlue"
-            leftSection={<IconHome size={20} />}
-            justify="flex-start"
-            fullWidth
-            onClick={() => { router.push('/'); close(); }}
-          >
-            Accueil
-          </Button>
-          {isAuthenticated && (
-            <>
-              <Button
-                variant={router.pathname === '/profile' ? 'light' : 'subtle'}
-                color="pastelBlue"
-                leftSection={<IconUser size={20} />}
-                justify="flex-start"
-                fullWidth
-                onClick={() => { router.push('/profile'); close(); }}
-              >
-                Mon Profil
-              </Button>
-              <Button
-                variant={router.pathname === '/messages' ? 'light' : 'subtle'}
-                color="pastelBlue"
-                leftSection={<IconMessageCircle size={20} />}
-                justify="flex-start"
-                fullWidth
-                onClick={() => { router.push('/messages'); close(); }}
-              >
-                Messages
-              </Button>
-            </>
-          )}
-        </Stack>
+      <AppShell.Main>
+        {children}
 
-        <Stack gap="xs" mt="auto" pt="md" style={{ borderTop: '1px solid #EAF7FF' }}>
-          <Text size="xs" c="dimmed" ta="center">
-            Tu n&apos;es pas seul(e) 💙
-          </Text>
-          <Text size="xs" c="dimmed" ta="center">
-            En cas d&apos;urgence : 3114
-          </Text>
-        </Stack>
-      </AppShell.Navbar>
-
-      <AppShell.Main>{children}</AppShell.Main>
+      <Group p="md" style={{ borderTop: '1px solid #EAF7FF', background: '#F0FAFF'}}>
+        <Group style={{ width: '100%', justifyContent: 'center' }}>
+          <Stack align="center" gap={0}>
+            <Text size="xs" c="dimmed" ta="center">
+              Tu n&apos;es pas seul(e) 💙
+            </Text>
+            <Text size="xs" c="dimmed" ta="center">
+              En cas d&apos;urgence : 3114
+            </Text>
+          </Stack>
+        </Group>
+      </Group>
+      </AppShell.Main>
     </AppShell>
   );
 }

@@ -365,6 +365,29 @@ export function useUpdateProfile() {
   });
 }
 
+export function useUploadAvatar() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const fd = new FormData();
+      fd.append('avatar', file);
+      const apiBase = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL.replace(/\/graphql\/?$/, '')) || 'http://localhost:4000';
+      const res = await fetch(`${apiBase}/upload/avatar`, {
+        method: 'POST',
+        body: fd,
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || 'Upload failed');
+      }
+      const data = await res.json();
+      // no automatic cache invalidation here — caller will update profile if needed
+      return data as { url: string };
+    },
+  });
+}
+
 export function useUsers() {
   return useQuery({
     queryKey: ['users'],

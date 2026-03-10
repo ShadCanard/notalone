@@ -29,7 +29,7 @@ export default function AdminUserDetail() {
       </Head>
 
       <Container size="md" py="xl">
-        <Group position="apart" mb="md">
+        <Group style={{ justifyContent: 'space-between' }} mb="md">
           <Title order={2}>Détail utilisateur</Title>
         </Group>
 
@@ -57,7 +57,7 @@ export default function AdminUserDetail() {
 
             <Modal opened={confirmOpen} onClose={() => setConfirmOpen(false)} title="Confirmer la suppression">
               <Text mb="md">Tu es sûr(e) de vouloir supprimer ce compte ? Cette action est irréversible.</Text>
-              <Group position="right">
+              <Group style={{ justifyContent: 'flex-end' }}>
                 <Button variant="default" onClick={() => setConfirmOpen(false)}>Annuler</Button>
                 <Button color="red" onClick={() => { deleteUser.mutate({ id: data.user.id }, { onSuccess: () => router.push('/admin') }); }}>Supprimer</Button>
               </Group>

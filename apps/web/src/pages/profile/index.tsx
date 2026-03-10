@@ -113,10 +113,10 @@ export default function ProfilePage() {
           </Alert>
         </Stack>
 
-        {userData?.user?.posts && userData.user.posts.length > 0 && (
+        {userData?.user && (userData.user as any).posts && (userData.user as any).posts.length > 0 && (
           <Stack gap="md" mt="xl">
             <Title order={3}>Mes posts</Title>
-            {userData.user.posts.map((p) => (
+            {(userData.user as any).posts.map((p: any) => (
               <PostCard key={p.id} post={p} />
             ))}
           </Stack>

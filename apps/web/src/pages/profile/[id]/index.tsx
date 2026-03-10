@@ -55,10 +55,10 @@ export default function PublicProfilePage() {
               </Stack>
             </Card>
 
-            {user.posts && user.posts.length > 0 && (
+            {(user as any).posts && (user as any).posts.length > 0 && (
               <Stack gap="md">
                 <Title order={3}>Posts</Title>
-                {user.posts.map((p) => (
+                {(user as any).posts.map((p: any) => (
                   <PostCard key={p.id} post={p} />
                 ))}
               </Stack>

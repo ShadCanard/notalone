@@ -33,7 +33,7 @@ export default function AdminUsersPage() {
       </Head>
 
       <Container size="lg" py="xl">
-        <Group position="apart" mb="md">
+        <Group style={{ justifyContent: 'space-between' }} mb="md">
           <Title order={2}>Administration — Comptes</Title>
           <Text c="dimmed">Gère les comptes et les rôles</Text>
         </Group>
