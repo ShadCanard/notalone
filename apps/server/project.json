@@ -1,0 +1,34 @@
+{
+  "name": "server",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/server/src",
+  "projectType": "application",
+  "targets": {
+    "dev": {
+      "command": "tsx watch src/index.ts",
+      "options": {
+        "cwd": "apps/server"
+      }
+    },
+    "build": {
+      "command": "tsc -p tsconfig.json",
+      "options": {
+        "cwd": "apps/server"
+      }
+    },
+    "start": {
+      "command": "node dist/index.js",
+      "options": {
+        "cwd": "apps/server"
+      }
+    }
+    ,
+    "lint": {
+      "command": "npx eslint \"apps/server/src/**/*.{ts,js}\" --ext .ts,.js",
+      "options": {
+        "cwd": "./"
+      }
+    }
+  },
+  "tags": ["scope:server"]
+}

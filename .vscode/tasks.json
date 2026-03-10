@@ -1,0 +1,100 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "🚀 Dev (All)",
+      "type": "shell",
+      "command": "npm run dev",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new",
+        "group": "dev"
+      }
+    },
+    {
+      "label": "🌐 Dev: Web (Next.js)",
+      "type": "shell",
+      "command": "npm run dev:web",
+      "group": "build",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new",
+        "group": "dev"
+      }
+    },
+    {
+      "label": "⚙️ Dev: Server (GraphQL)",
+      "type": "shell",
+      "command": "npm run dev:server",
+      "group": "build",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new",
+        "group": "dev"
+      }
+    },
+    {
+      "label": "📊 Prisma Studio",
+      "type": "shell",
+      "command": "npm run prisma:studio",
+      "group": "build",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new",
+        "group": "prisma"
+      }
+    },
+    {
+      "label": "🔄 Prisma Generate",
+      "type": "shell",
+      "command": "npm run prisma:generate",
+      "group": "build",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "📦 Prisma Migrate (Dev)",
+      "type": "shell",
+      "command": "npm run prisma:migrate",
+      "group": "build",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "📤 Prisma DB Push",
+      "type": "shell",
+      "command": "npm run prisma:push",
+      "group": "build",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "🏗️ Build All",
+      "type": "shell",
+      "command": "npm run build",
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
+}

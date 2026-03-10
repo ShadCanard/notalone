@@ -1,0 +1,34 @@
+{
+  "name": "web",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/web/src",
+  "projectType": "application",
+  "targets": {
+    "dev": {
+      "command": "next dev --turbopack -p 3000",
+      "options": {
+        "cwd": "apps/web"
+      }
+    },
+    "build": {
+      "command": "next build",
+      "options": {
+        "cwd": "apps/web"
+      }
+    },
+    "start": {
+      "command": "next start -p 3000",
+      "options": {
+        "cwd": "apps/web"
+      }
+    }
+    ,
+    "lint": {
+      "command": "npx eslint \"apps/web/src/**/*.{ts,tsx,js,jsx}\" --ext .ts,.tsx,.js,.jsx",
+      "options": {
+        "cwd": "./"
+      }
+    }
+  },
+  "tags": ["scope:web"]
+}
