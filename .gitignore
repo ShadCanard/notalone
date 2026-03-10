@@ -51,3 +51,7 @@ Thumbs.db
 
 # Prisma
 prisma/*.db
+
+# Uploads (server) - keep directory in repo but ignore uploaded files
+apps/server/uploads/*
+!apps/server/uploads/.gitkeep
