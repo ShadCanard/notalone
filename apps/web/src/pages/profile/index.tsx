@@ -1,4 +1,5 @@
 import { Container, Card, Title, Text, TextInput, Textarea, Button, Stack, Avatar, Center, Loader, Alert } from '@mantine/core';
+import { getUploadUrl } from '@/lib/uploads';
 import { useForm } from '@mantine/form';
 import { IconUser } from '@tabler/icons-react';
 import Layout from '@/components/Layout';
@@ -80,7 +81,7 @@ export default function ProfilePage() {
         <Stack gap="xl">
           <Card radius="xl" padding="xl" style={{ background: 'linear-gradient(135deg, #F6FBFF 0%, #EAF7FF 100%)', border: 'none' }}>
             <Stack align="center" gap="md">
-              <Avatar src={user?.avatar || '/default-avatar.svg'} size={100} radius="xl" color="pastelBlue" variant="filled">
+              <Avatar src={getUploadUrl(user?.avatar) || '/default-avatar.svg'} size={100} radius="xl" color="pastelBlue" variant="filled">
                 {user?.username?.charAt(0).toUpperCase() || <IconUser size={48} />}
               </Avatar>
               <Title order={2} c="pastelBlue.8">

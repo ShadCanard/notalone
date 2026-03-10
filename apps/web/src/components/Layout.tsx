@@ -2,6 +2,7 @@ import { AppShell, Group, Title, Button, Avatar, Menu, UnstyledButton, Text, Bur
 import { useDisclosure } from '@mantine/hooks';
 import { IconHeart, IconUser, IconLogout, IconHome, IconMessageCircle, IconShieldCheck, IconSettings, IconBell } from '@tabler/icons-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { getUploadUrl } from '@/lib/uploads';
 import { useRouter } from 'next/router';
 import type { ReactNode } from 'react';
 
@@ -78,7 +79,7 @@ export default function Layout({ children }: LayoutProps) {
                 <UnstyledButton>
                   <Group gap="xs">
                     <Avatar
-                      src={user?.avatar || '/default-avatar.svg'}
+                      src={getUploadUrl(user?.avatar) || '/default-avatar.svg'}
                       alt={user?.username}
                       radius="xl"
                       size="md"

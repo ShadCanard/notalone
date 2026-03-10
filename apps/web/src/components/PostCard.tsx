@@ -5,6 +5,7 @@ import { useToggleLike, useCreateComment } from '@/hooks/useApi';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect } from 'react';
 import { notifications } from '@mantine/notifications';
+import { getUploadUrl } from '@/lib/uploads';
 
 interface PostCardProps {
   post: {
@@ -93,7 +94,7 @@ export default function PostCard({ post }: PostCardProps) {
         <Group>
           <Link href={`/profile/${post.author.id}`} legacyBehavior>
             <a style={{ display: 'inline-block' }}>
-              <Avatar src={post.author.avatar || '/default-avatar.svg'} alt={post.author.username} radius="xl" color="pastelBlue">
+              <Avatar src={getUploadUrl(post.author.avatar) || '/default-avatar.svg'} alt={post.author.username} radius="xl" color="pastelBlue">
                 {post.author.username.charAt(0).toUpperCase()}
               </Avatar>
             </a>
@@ -158,7 +159,7 @@ export default function PostCard({ post }: PostCardProps) {
             <Group key={comment.id} gap="sm" align="flex-start">
               <Link href={`/profile/${comment.author.id}`} legacyBehavior>
                 <a style={{ display: 'inline-block' }}>
-                  <Avatar src={comment.author.avatar || '/default-avatar.svg'} size="sm" radius="xl" color="pastelBlue">
+                  <Avatar src={getUploadUrl(comment.author.avatar) || '/default-avatar.svg'} size="sm" radius="xl" color="pastelBlue">
                     {comment.author.username.charAt(0).toUpperCase()}
                   </Avatar>
                 </a>

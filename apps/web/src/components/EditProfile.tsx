@@ -4,6 +4,7 @@ import { notifications } from '@mantine/notifications';
 import { useMe, useUpdateProfile, useUploadAvatar } from '@/hooks/useApi';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useRef, useState } from 'react';
+import { getUploadUrl } from '@/lib/uploads';
 import { IconEdit } from '@tabler/icons-react';
 
 export default function EditProfile() {
@@ -53,7 +54,7 @@ export default function EditProfile() {
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
           >
-            <Avatar src={form.values.avatar || '/default-avatar.svg'} radius="xl" size={64} />
+            <Avatar src={getUploadUrl(form.values.avatar) || '/default-avatar.svg'} radius="xl" size={64} />
 
             <div
               role="button"

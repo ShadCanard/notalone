@@ -5,6 +5,7 @@ import Head from 'next/head';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUser } from '@/hooks/useApi';
 import { Container, Title, Text, Card, Center, Loader, Avatar, Stack, Button } from '@mantine/core';
+import { getUploadUrl } from '@/lib/uploads';
 import PostCard from '@/components/PostCard';
 
 export default function PublicProfilePage() {
@@ -44,7 +45,7 @@ export default function PublicProfilePage() {
           <Stack gap="md">
             <Card radius="xl" padding="xl" style={{ background: 'linear-gradient(135deg, #F6FBFF 0%, #EAF7FF 100%)', border: 'none' }}>
               <Stack align="center">
-                <Avatar src={user.avatar || '/default-avatar.svg'} size={100} radius="xl" color="pastelBlue" variant="filled">
+                <Avatar src={getUploadUrl(user.avatar) || '/default-avatar.svg'} size={100} radius="xl" color="pastelBlue" variant="filled">
                   {user.username?.charAt(0).toUpperCase()}
                 </Avatar>
                 <Title order={2}>@{user.username}</Title>
