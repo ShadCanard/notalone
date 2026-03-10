@@ -35,7 +35,7 @@ function sanitizeUserForPublic(user: Record<string, unknown> | null | undefined,
   const u = user as Record<string, unknown>;
   const createdVal = u['createdAt'];
   const createdAtStr = createdVal instanceof Date ? (createdVal as Date).toISOString() : String(createdVal);
-  const base: Record<string, unknown> = { id: u['id'], username: u['username'], createdAt: createdAtStr };
+  const base: Record<string, unknown> & { posts?: unknown[] } = { id: u['id'], username: u['username'], createdAt: createdAtStr };
   if (u.posts) {
     base.posts = (u.posts as unknown as Array<Record<string, unknown>>)
       .filter((p) => (p as Record<string, unknown>)['isPublic'] !== false)
@@ -79,13 +79,13 @@ function sanitizePostForPublic(post: Record<string, unknown> | null | undefined,
   return p;
 }
 
-function convertDates(obj: unknown): unknown {
+function convertDates(obj: any): any {
   if (!obj || typeof obj !== 'object') return obj;
   // handle Date -> ISO conversion for known fields
-  const out: Record<string, unknown> = Array.isArray(obj) ? [] : { ...(obj as Record<string, unknown>) };
+  const out: any = Array.isArray(obj) ? [] : { ...(obj as any) };
 
   if (Array.isArray(obj)) {
-    return (obj as unknown as unknown[]).map(convertDates);
+    return (obj as any[]).map(convertDates);
   }
 
   for (const key of Object.keys(out)) {
@@ -93,9 +93,9 @@ function convertDates(obj: unknown): unknown {
     if (val instanceof Date) {
       out[key] = val.toISOString();
     } else if (Array.isArray(val)) {
-      out[key] = (val as unknown as unknown[]).map(convertDates);
+      out[key] = (val as any[]).map(convertDates);
     } else if (val && typeof val === 'object') {
-      out[key] = convertDates(val as unknown);
+      out[key] = convertDates(val as any);
     }
   }
 
@@ -433,7 +433,7 @@ export const schema = createSchema<Context>({
         if (!hasRole(context, 'ADMIN')) throw new Error('Non autorisé');
         const allowed = ['USER', 'MODERATOR', 'ADMIN'];
         if (!allowed.includes(args.role)) throw new Error('Role invalide');
-        const u = await prisma.user.update({ where: { id: args.userId }, data: { role: args.role } });
+        const u = await prisma.user.update({ where: { id: args.userId }, data: { role: args.role as any } });
         return convertDates(u);
       },
 
