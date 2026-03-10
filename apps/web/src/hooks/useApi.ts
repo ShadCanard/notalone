@@ -175,8 +175,8 @@ const SEND_MESSAGE_MUTATION = gql`
 `;
 
 const UPDATE_PROFILE_MUTATION = gql`
-  mutation UpdateProfile($firstName: String, $lastName: String, $bio: String) {
-    updateProfile(firstName: $firstName, lastName: $lastName, bio: $bio) {
+  mutation UpdateProfile($firstName: String, $lastName: String, $bio: String, $avatar: String) {
+    updateProfile(firstName: $firstName, lastName: $lastName, bio: $bio, avatar: $avatar) {
       id
       email
       username
@@ -357,7 +357,7 @@ export function useSendMessage() {
 export function useUpdateProfile() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (variables: { firstName?: string; lastName?: string; bio?: string }) =>
+    mutationFn: (variables: { firstName?: string; lastName?: string; bio?: string; avatar?: string }) =>
       graphqlClient.request(UPDATE_PROFILE_MUTATION, variables),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['me'] });

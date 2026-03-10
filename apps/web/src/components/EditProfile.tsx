@@ -92,8 +92,13 @@ export default function EditProfile() {
             if (!file) return;
             uploadAvatar.mutate(file, {
               onSuccess: (data: any) => {
-                form.setFieldValue('avatar', data.url || '');
-                notifications.show({ title: 'Avatar téléchargé', message: "L'avatar a été uploadé", color: 'green' });
+                const url = data.url || '';
+                form.setFieldValue('avatar', url);
+                // persist avatar to profile
+                updateProfile.mutate({ avatar: url }, {
+                  onSuccess: () => notifications.show({ title: 'Avatar mis à jour', message: "Ton avatar a été enregistré", color: 'green' }),
+                  onError: () => notifications.show({ title: 'Erreur', message: "Impossible d'enregistrer l'avatar", color: 'red' }),
+                });
               },
               onError: () => notifications.show({ title: 'Erreur', message: "Échec de l'upload", color: 'red' }),
             });
