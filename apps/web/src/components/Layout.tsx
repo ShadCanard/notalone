@@ -1,8 +1,9 @@
 import { AppShell, Group, Title, Button, Avatar, Menu, UnstyledButton, Text, Burger, Stack } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconHeart, IconUser, IconLogout, IconHome, IconMessageCircle, IconShieldCheck, IconSettings, IconBell } from '@tabler/icons-react';
+import { IconHeart, IconUser, IconLogout, IconHome, IconMessageCircle, IconShieldCheck, IconSettings } from '@tabler/icons-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getUploadUrl } from '@/lib/uploads';
+import NotificationMenu from '@/components/NotificationMenu';
 import { useRouter } from 'next/router';
 import type { ReactNode } from 'react';
 
@@ -65,12 +66,7 @@ export default function Layout({ children }: LayoutProps) {
               </Group>
             </Button>
 
-            <Button variant="subtle" onClick={() => router.push('/notifications')}>
-              <Group gap="xs">
-                <IconBell size={18} color="white" />
-                <Text c="white">Notifications</Text>
-              </Group>
-            </Button>
+            <NotificationMenu />
           </Group>
 
           {isAuthenticated ? (
