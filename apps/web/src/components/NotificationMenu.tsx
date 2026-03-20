@@ -8,8 +8,8 @@ export default function NotificationMenu() {
   return (
     <Button variant="subtle" onClick={() => router.push('/notifications')}>
       <Group gap="xs">
-        <IconBell size={18} color="white" />
-        <Text c="white">Notifications</Text>
+        <IconBell size={18} />
+        <Text>Notifications</Text>
       </Group>
     </Button>
   );

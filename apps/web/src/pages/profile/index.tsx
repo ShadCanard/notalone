@@ -79,7 +79,7 @@ export default function ProfilePage() {
 
       <Container size="sm" py="xl">
         <Stack gap="xl">
-          <Card radius="xl" padding="xl" style={{ background: 'linear-gradient(135deg, #F6FBFF 0%, #EAF7FF 100%)', border: 'none' }}>
+          <Card radius="xl" padding="xl" style={{ border: 'none' }}>
             <Stack align="center" gap="md">
               <Avatar src={getUploadUrl(user?.avatar) || '/default-avatar.svg'} size={100} radius="xl" color="pastelBlue" variant="filled">
                 {user?.username?.charAt(0).toUpperCase() || <IconUser size={48} />}
@@ -90,28 +90,6 @@ export default function ProfilePage() {
               <Text c="dimmed">{user?.email}</Text>
             </Stack>
           </Card>
-
-          <Card radius="lg" padding="xl" shadow="sm" withBorder style={{ borderColor: '#EAF7FF' }}>
-            <Title order={3} mb="md">
-              Modifier mon profil
-            </Title>
-            <form onSubmit={handleSubmit}>
-              <Stack gap="md">
-                <TextInput label="Prénom" placeholder="Ton prénom" {...form.getInputProps('firstName')} />
-                <TextInput label="Nom" placeholder="Ton nom" {...form.getInputProps('lastName')} />
-                <Textarea label="Bio" placeholder="Parle-nous un peu de toi..." autosize minRows={3} maxRows={6} {...form.getInputProps('bio')} />
-                <Button type="submit" color="pastelBlue" loading={updateProfile.isPending}>
-                  Sauvegarder
-                </Button>
-              </Stack>
-            </form>
-          </Card>
-
-          <Alert color="pastelBlue" variant="light" radius="lg">
-            <Text size="sm">
-              💡 <strong>Astuce :</strong> Un profil complet aide les autres à mieux te connaître et facilite les échanges bienveillants.
-            </Text>
-          </Alert>
         </Stack>
 
         {userData?.user && (userData.user as any).posts && (userData.user as any).posts.length > 0 && (

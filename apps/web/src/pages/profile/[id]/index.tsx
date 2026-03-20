@@ -43,7 +43,7 @@ export default function PublicProfilePage() {
 
         {user && (
           <Stack gap="md">
-            <Card radius="xl" padding="xl" style={{ background: 'linear-gradient(135deg, #F6FBFF 0%, #EAF7FF 100%)', border: 'none' }}>
+            <Card radius="xl" padding="xl" style={{ border: 'none' }}>
               <Stack align="center">
                 <Avatar src={getUploadUrl(user.avatar) || '/default-avatar.svg'} size={100} radius="xl" color="pastelBlue" variant="filled">
                   {user.username?.charAt(0).toUpperCase()}

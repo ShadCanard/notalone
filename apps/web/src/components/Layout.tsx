@@ -1,9 +1,9 @@
-import { AppShell, Group, Title, Button, Avatar, Menu, UnstyledButton, Text, Burger, Stack } from '@mantine/core';
+import { AppShell, Group, Title, Button, Text, Burger, Stack } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconHeart, IconUser, IconLogout, IconHome, IconMessageCircle, IconShieldCheck, IconSettings } from '@tabler/icons-react';
+import { IconHeart, IconUser, IconHome } from '@tabler/icons-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUploadUrl } from '@/lib/uploads';
 import NotificationMenu from '@/components/NotificationMenu';
+import NavbarUserMenu from '@/components/NavbarUserMenu';
 import { useRouter } from 'next/router';
 import type { ReactNode } from 'react';
 
@@ -38,73 +38,38 @@ export default function Layout({ children }: LayoutProps) {
     >
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between">
-          <Group>
-            <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" color="white" />
+            <Group>
+            <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
             <Group gap="xs" style={{ cursor: 'pointer' }} onClick={() => router.push('/')}>
-              <IconHeart size={32} color="white" fill="white" />
-              <Title order={2} c="white" fw={800}>
+              <IconHeart size={32} />
+              <Title order={2} fw={800}>
                 NotAlone
               </Title>
             </Group>
           </Group>
 
           <Group style={{ margin: '0 auto' }} gap="md">
+            {isAuthenticated ? <>
             <Button variant="subtle" onClick={() => router.push('/')}>
               <Group gap="xs">
-                <IconHome size={18} color="white" />
-                <Text c="white">Accueil</Text>
+                <IconHome size={18} />
+                <Text>Accueil</Text>
               </Group>
             </Button>
 
             <Button variant="subtle" onClick={() => router.push('/profile')}>
               <Group gap="xs">
-                <IconUser size={18} color="white" />
-                <Text c="white">Mon Profil</Text>
+                <IconUser size={18} />
+                <Text>Mon Profil</Text>
               </Group>
             </Button>
 
             <NotificationMenu />
+            </> : null}
           </Group>
 
           {isAuthenticated ? (
-            <Menu shadow="md" width={200}>
-              <Menu.Target>
-                <UnstyledButton>
-                  <Group gap="xs">
-                    <Avatar
-                      src={getUploadUrl(user?.avatar) || '/default-avatar.svg'}
-                      alt={user?.username}
-                      radius="xl"
-                      size="md"
-                      variant="filled"
-                    >
-                      {user?.username?.charAt(0).toUpperCase()}
-                    </Avatar>
-                    <Text c="white" fw={600} visibleFrom="sm">
-                      {user?.username}
-                    </Text>
-                  </Group>
-                </UnstyledButton>
-              </Menu.Target>
-
-              <Menu.Dropdown>
-                <Menu.Item leftSection={<IconSettings size={14} />} onClick={() => router.push('/settings')}>
-                  Paramètres
-                </Menu.Item>
-                {user?.role === 'ADMIN' && (
-                  <>
-                    <Menu.Divider />
-                    <Menu.Item leftSection={<IconShieldCheck size={14} />} onClick={() => router.push('/admin')}>
-                      Admin
-                    </Menu.Item>
-                  </>
-                )}
-                <Menu.Divider />
-                <Menu.Item color="red" leftSection={<IconLogout size={14} />} onClick={handleLogout}>
-                  Déconnexion
-                </Menu.Item>
-              </Menu.Dropdown>
-            </Menu>
+            <NavbarUserMenu />
           ) : (
             <Group>
               <Button variant="white" color="pastelBlue" onClick={() => router.push('/login')}>
