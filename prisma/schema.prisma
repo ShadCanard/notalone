@@ -45,6 +45,7 @@ model Post {
   author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   comments  Comment[]
   likes     Like[]
+  attachments Attachment[]
 }
 
 model Comment {
@@ -80,4 +81,17 @@ model Message {
   sender     User   @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
   receiverId String
   receiver   User   @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+}
+
+model Attachment {
+  id        String   @id @default(uuid())
+  filename  String
+  path      String
+  mimeType  String?
+  checksum  String
+  size      Int
+  createdAt DateTime @default(now())
+
+  posts     Post[]
+  @@index([checksum, size])
 }

@@ -73,6 +73,13 @@ export function sanitizePostForPublic(post: Record<string, unknown> | null | und
     });
   }
 
+  if (p['attachments']) {
+    p['attachments'] = (p['attachments'] as unknown as Array<Record<string, unknown>>).map((a) => {
+      const aa = { id: a['id'], filename: a['filename'], path: a['path'], mimeType: a['mimeType'], checksum: a['checksum'], size: a['size'], createdAt: a['createdAt'] };
+      return aa;
+    });
+  }
+
   return p;
 }
 

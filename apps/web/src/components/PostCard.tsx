@@ -29,6 +29,7 @@ interface PostCardProps {
       createdAt: string;
       author: { id: string; username: string; avatar?: string };
     }>;
+    attachments?: Array<{ id: string; filename: string; path: string; mimeType?: string; size?: number; createdAt?: string }>;
   };
 }
 
@@ -126,6 +127,23 @@ export default function PostCard({ post }: PostCardProps) {
       <Text size="md" mb="md" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
         {post.content}
       </Text>
+
+      {post.attachments && post.attachments.length > 0 && (
+        <Stack spacing="xs" mb="md">
+          {post.attachments.map((a) => (
+            <div key={a.id}>
+              {a.mimeType?.startsWith('image/') ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={getUploadUrl(a.path)} alt={a.filename} style={{ maxWidth: '100%', borderRadius: 8 }} />
+              ) : a.mimeType?.startsWith('audio/') ? (
+                <audio controls src={getUploadUrl(a.path)} style={{ width: '100%' }} />
+              ) : (
+                <a href={getUploadUrl(a.path)} target="_blank" rel="noreferrer">{a.filename}</a>
+              )}
+            </div>
+          ))}
+        </Stack>
+      )}
 
       <Group justify="space-between">
         <Group gap="lg">

@@ -65,6 +65,7 @@ const POSTS_QUERY = gql`
       mood
       isPublic
       createdAt
+      attachments { id filename path mimeType size createdAt }
       likesCount
       commentsCount
       isLikedByMe
@@ -90,13 +91,14 @@ const POSTS_QUERY = gql`
 `;
 
 const CREATE_POST_MUTATION = gql`
-  mutation CreatePost($content: String!, $mood: String, $isPublic: Boolean) {
-    createPost(content: $content, mood: $mood, isPublic: $isPublic) {
+  mutation CreatePost($content: String!, $mood: String, $isPublic: Boolean, $attachmentIds: [ID!]) {
+    createPost(content: $content, mood: $mood, isPublic: $isPublic, attachmentIds: $attachmentIds) {
       id
       content
       mood
       isPublic
       createdAt
+      attachments { id filename path mimeType size createdAt }
       likesCount
       commentsCount
       isLikedByMe
@@ -119,6 +121,7 @@ const POST_QUERY = gql`
       mood
       isPublic
       createdAt
+      attachments { id filename path mimeType size createdAt }
       likesCount
       commentsCount
       isLikedByMe
@@ -222,6 +225,7 @@ const USER_QUERY = gql`
         mood
         isPublic
         createdAt
+        attachments { id filename path mimeType size createdAt }
         likesCount
         commentsCount
         isLikedByMe
@@ -306,7 +310,7 @@ export function usePost(id?: string) {
 export function useCreatePost() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (variables: { content: string; mood?: string; isPublic?: boolean }) =>
+    mutationFn: (variables: { content: string; mood?: string; isPublic?: boolean; attachmentIds?: string[] }) =>
       graphqlClient.request(CREATE_POST_MUTATION, variables),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['posts'] });
@@ -384,6 +388,27 @@ export function useUploadAvatar() {
       const data = await res.json();
       // no automatic cache invalidation here — caller will update profile if needed
       return data as { url: string };
+    },
+  });
+}
+
+export function useUploadAttachments() {
+  return useMutation({
+    mutationFn: async (files: File[]) => {
+      const fd = new FormData();
+      files.forEach((f) => fd.append('files', f));
+      const apiBase = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL.replace(/\/graphql\/?$/, '')) || 'http://localhost:4000';
+      const res = await fetch(`${apiBase}/upload/attachments`, {
+        method: 'POST',
+        body: fd,
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || 'Upload failed');
+      }
+      const data = await res.json();
+      return data as { attachments: Array<{ id: string; filename: string; path: string; mimeType?: string; checksum: string; size: number; createdAt: string }> };
     },
   });
 }

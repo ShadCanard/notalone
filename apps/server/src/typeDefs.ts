@@ -21,9 +21,20 @@ export const typeDefs = /* GraphQL */ `
       author: User!
       comments: [Comment!]!
       likes: [Like!]!
+      attachments: [Attachment!]!
       likesCount: Int!
       commentsCount: Int!
       isLikedByMe: Boolean!
+    }
+
+    type Attachment {
+      id: ID!
+      filename: String!
+      path: String!
+      mimeType: String
+      checksum: String!
+      size: Int!
+      createdAt: String!
     }
 
     type Comment {
@@ -68,7 +79,7 @@ export const typeDefs = /* GraphQL */ `
     type Mutation {
       register(email: String!, username: String!, password: String!, firstName: String, lastName: String): AuthPayload!
       login(identifier: String!, password: String!): AuthPayload!
-      createPost(content: String!, mood: String, isPublic: Boolean): Post!
+      createPost(content: String!, mood: String, isPublic: Boolean, attachmentIds: [ID!]): Post!
       deletePost(id: ID!): Boolean!
       createComment(postId: ID!, content: String!): Comment!
       toggleLike(postId: ID!): Boolean!

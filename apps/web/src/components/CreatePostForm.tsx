@@ -1,6 +1,6 @@
-import { Card, Textarea, Button, Group, Select, Switch, Stack } from '@mantine/core';
+import { Card, Textarea, Button, Group, Select, Switch, Stack, FileButton, Text } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import { useCreatePost } from '@/hooks/useApi';
+import { useCreatePost, useUploadAttachments } from '@/hooks/useApi';
 import { notifications } from '@mantine/notifications';
 
 const moodOptions = [
@@ -18,43 +18,34 @@ const moodOptions = [
 
 export default function CreatePostForm() {
   const createPost = useCreatePost();
+  const uploadAttachments = useUploadAttachments();
 
   const form = useForm({
     initialValues: {
       content: '',
       mood: '',
       isPublic: true,
+      files: [] as File[],
     },
     validate: {
       content: (value) => (value.trim().length < 1 ? 'Écris quelque chose...' : null),
     },
   });
 
-  const handleSubmit = form.onSubmit((values) => {
-    createPost.mutate(
-      {
-        content: values.content,
-        mood: values.mood || undefined,
-        isPublic: values.isPublic,
-      },
-      {
-        onSuccess: () => {
-          form.reset();
-          notifications.show({
-            title: 'Post publié !',
-            message: 'Merci de partager avec la communauté 💙',
-            color: 'green',
-          });
-        },
-        onError: () => {
-          notifications.show({
-            title: 'Erreur',
-            message: 'Impossible de publier le post. Réessaie.',
-            color: 'red',
-          });
-        },
+  const handleSubmit = form.onSubmit(async (values) => {
+    try {
+      let attachmentIds: string[] | undefined = undefined;
+      if (values.files && values.files.length > 0) {
+        const res = await uploadAttachments.mutateAsync(values.files as File[]);
+        attachmentIds = res.attachments.map((a) => a.id);
       }
-    );
+
+      await createPost.mutateAsync({ content: values.content, mood: values.mood || undefined, isPublic: values.isPublic, attachmentIds });
+      form.reset();
+      notifications.show({ title: 'Post publié !', message: 'Merci de partager avec la communauté 💙', color: 'green' });
+    } catch (e) {
+      notifications.show({ title: 'Erreur', message: 'Impossible de publier le post. Réessaie.', color: 'red' });
+    }
   });
 
   return (
@@ -83,6 +74,20 @@ export default function CreatePostForm() {
                 color="pastelBlue"
                 {...form.getInputProps('isPublic', { type: 'checkbox' })}
               />
+              <FileButton
+                onChange={(file) => {
+                  if (!file) return;
+                  // support multiple files by appending
+                  const prev = (form.values as any).files || [];
+                  form.setFieldValue('files', [...prev, file]);
+                }}
+                accept="image/*,audio/*"
+              >
+                {(props) => <Button {...props}>Ajouter fichier</Button>}
+              </FileButton>
+              {(form.values as any).files && (form.values as any).files.length > 0 && (
+                <Text size="xs" c="dimmed">{(form.values as any).files.map((f: File) => f.name).join(', ')}</Text>
+              )}
             </Group>
 
             <Button type="submit" color="pastelBlue" loading={createPost.isPending}>

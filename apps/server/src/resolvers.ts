@@ -51,6 +51,7 @@ export const resolvers = {
             author: true,
             comments: { include: { author: true } },
             likes: { include: { user: true } },
+            attachments: true,
           },
         });
         return posts.map((p) => sanitizePostForPublic(p, context));
@@ -63,6 +64,7 @@ export const resolvers = {
             author: true,
             comments: { include: { author: true }, orderBy: { createdAt: 'asc' } },
             likes: { include: { user: true } },
+            attachments: true,
           },
         });
         return sanitizePostForPublic(p, context);
@@ -77,6 +79,7 @@ export const resolvers = {
             author: true,
             comments: { include: { author: true } },
             likes: { include: { user: true } },
+            attachments: true,
           },
         });
         return posts.map((p) => sanitizePostForPublic(p, context));
@@ -148,19 +151,24 @@ export const resolvers = {
         return { token, user: convertDates(user) };
       },
 
-      createPost: async (_parent: any, args: { content: string; mood?: string; isPublic?: boolean }, context: Context) => {
+      createPost: async (_parent: any, args: { content: string; mood?: string; isPublic?: boolean; attachmentIds?: string[] }, context: Context) => {
         if (!context.user) throw new Error('Non authentifié');
+        const data: any = {
+          content: args.content,
+          mood: args.mood,
+          isPublic: args.isPublic ?? true,
+          authorId: context.user.userId,
+        };
+        if (args.attachmentIds && args.attachmentIds.length > 0) {
+          data.attachments = { connect: args.attachmentIds.map((id: string) => ({ id })) };
+        }
         const created = await prisma.post.create({
-          data: {
-            content: args.content,
-            mood: args.mood,
-            isPublic: args.isPublic ?? true,
-            authorId: context.user.userId,
-          },
+          data,
           include: {
             author: true,
             comments: { include: { author: true } },
             likes: { include: { user: true } },
+            attachments: true,
           },
         });
         return sanitizePostForPublic(created, context);

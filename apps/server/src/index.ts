@@ -9,6 +9,7 @@ import { verifyToken } from './auth.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 
 const app = express();
 
@@ -106,6 +107,59 @@ app.post('/upload/avatar', (req, res) => {
     if (!file) return res.status(400).json({ error: 'No file uploaded' });
     const url = `/uploads/avatars/${file.filename}`;
     res.json({ url });
+  });
+});
+
+// attachments upload (images + audio), support multiple files and dedup via checksum+size
+const attachmentsStorage = multer.memoryStorage();
+const ATTACHMENTS_MIMES = [...ALLOWED_MIMES, 'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg'];
+const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024; // 10 MB
+const attachmentsUpload = multer({ storage: attachmentsStorage, limits: { fileSize: MAX_ATTACHMENT_SIZE } });
+
+app.post('/upload/attachments', (req, res) => {
+  attachmentsUpload.array('files')(req as any, res as any, async (err: any) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: 'File too large. Max 10MB.' });
+      return res.status(500).json({ error: 'Upload error' });
+    }
+
+    const files = (req as any).files as Array<any> | undefined;
+    if (!files || files.length === 0) return res.status(400).json({ error: 'No files uploaded' });
+
+    try {
+      const results: any[] = [];
+      for (const file of files) {
+        if (!ATTACHMENTS_MIMES.includes(file.mimetype)) {
+          results.push({ error: 'invalid_mime', originalName: file.originalname });
+          continue;
+        }
+        const buffer: Buffer = file.buffer;
+        const size = buffer.length;
+        const hash = crypto.createHash('sha256').update(buffer).digest('hex');
+
+        // check existing
+        const existing = await prisma.attachment.findFirst({ where: { checksum: hash, size } });
+        if (existing) {
+          results.push({ existing: true, attachment: existing });
+          continue;
+        }
+
+        // write to disk
+        const dir = path.join(uploadsRoot, 'attachments');
+        fs.mkdirSync(dir, { recursive: true });
+        const safe = `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+        const outPath = path.join(dir, safe);
+        fs.writeFileSync(outPath, buffer);
+
+        const db = await prisma.attachment.create({ data: { filename: file.originalname, path: `/uploads/attachments/${safe}`, mimeType: file.mimetype, checksum: hash, size } });
+        results.push({ existing: false, attachment: db });
+      }
+
+      return res.json({ attachments: results.map((r) => r.attachment) });
+    } catch (e) {
+      console.error('upload attachments error', e);
+      return res.status(500).json({ error: 'Server error' });
+    }
   });
 });
 
