@@ -25,7 +25,6 @@ export default function Home() {
             radius="xl"
             padding="xl"
             style={{
-              background: 'linear-gradient(135deg, #F6FBFF 0%, #EAF7FF 50%, #D6F0FF 100%)',
               border: 'none',
             }}
           >

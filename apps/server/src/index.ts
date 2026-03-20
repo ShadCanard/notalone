@@ -46,6 +46,17 @@ fs.mkdirSync(uploadsRoot, { recursive: true });
 // serve uploaded files
 app.use('/uploads', express.static(uploadsRoot));
 
+// helper to get authenticated DB user from Authorization header (or null)
+async function getAuthUserFromReq(req: express.Request) {
+  const authHeader = req.headers['authorization'] as string | undefined;
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  const token = authHeader.slice(7);
+  const payload = verifyToken(token);
+  if (!payload) return null;
+  const dbUser = await prisma.user.findUnique({ where: { id: payload.userId } }).catch(() => null);
+  return dbUser ?? null;
+}
+
 // multer storage for avatars
 const avatarStorage = multer.diskStorage({
   destination: (req: any, file: any, cb: any) => {
@@ -104,3 +115,43 @@ app.listen(PORT, () => {
   console.log(`🚀 Server ready at http://localhost:${PORT}/graphql`);
   console.log(`📊 GraphiQL available at http://localhost:${PORT}/graphql`);
 });
+
+// Public user info (sanitized) - GET /api/v1/users/:id
+app.get('/api/v1/users/:id', async (req, res) => {
+  try {
+    const dbUser = await prisma.user.findUnique({ where: { id: String(req.params.id) }, include: { posts: true } });
+    if (!dbUser) return res.status(404).json({ error: 'User not found', code: 'NOT_FOUND' });
+    // build minimal public projection
+    const publicUser: any = {
+      id: dbUser.id,
+      username: dbUser.username,
+      avatar: dbUser.avatar || null,
+      createdAt: dbUser.createdAt.toISOString(),
+      posts: (dbUser.posts || []).filter((p: any) => p.isPublic !== false).map((p: any) => ({ id: p.id, content: p.content, createdAt: p.createdAt.toISOString(), isPublic: p.isPublic })),
+    };
+    return res.json(publicUser);
+  } catch (e) {
+    console.error('GET /api/v1/users/:id error', e);
+    return res.status(500).json({ error: 'Server error', code: 'INTERNAL_ERROR' });
+  }
+});
+
+// Admin-only full user info - GET /api/v1/admin/users/:id
+app.get('/api/v1/admin/users/:id', async (req, res) => {
+  try {
+    const authUser = await getAuthUserFromReq(req);
+    if (!authUser) return res.status(401).json({ error: 'Unauthenticated', code: 'UNAUTHENTICATED' });
+    if ((authUser.role || 'USER') !== 'ADMIN') return res.status(403).json({ error: 'Forbidden', code: 'FORBIDDEN' });
+
+    const dbUser = await prisma.user.findUnique({ where: { id: String(req.params.id) } });
+    if (!dbUser) return res.status(404).json({ error: 'User not found', code: 'NOT_FOUND' });
+    // return full user (do not include password)
+    const { password, ...rest } = dbUser as any;
+    const out = { ...rest, createdAt: rest.createdAt instanceof Date ? rest.createdAt.toISOString() : rest.createdAt };
+    return res.json(out);
+  } catch (e) {
+    console.error('GET /api/v1/admin/users/:id error', e);
+    return res.status(500).json({ error: 'Server error', code: 'INTERNAL_ERROR' });
+  }
+});
+ 

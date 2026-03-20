@@ -26,15 +26,12 @@ export default function Layout({ children }: LayoutProps) {
       header={{ height: 70 }}
       styles={{
         main: {
-          background: '#F0F8FF',
           minHeight: '100vh',
         },
         header: {
-          background: 'linear-gradient(135deg, #6ccfff 0%, #4bbfff 50%, #2aa6ff 100%)',
           borderBottom: 'none',
         },
         navbar: {
-          background: '#F0FAFF',
           borderRight: '1px solid #EAF7FF',
         },
       }}
@@ -124,7 +121,7 @@ export default function Layout({ children }: LayoutProps) {
       <AppShell.Main>
         {children}
 
-      <Group p="md" style={{ borderTop: '1px solid #EAF7FF', background: '#F0FAFF'}}>
+      <Group p="md" style={{ borderTop: '1px solid #EAF7FF'}}>
         <Group style={{ width: '100%', justifyContent: 'center' }}>
           <Stack align="center" gap={0}>
             <Text size="xs" c="dimmed" ta="center">

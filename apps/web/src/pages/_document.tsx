@@ -5,7 +5,7 @@ export default function Document() {
   return (
     <Html lang="fr">
       <Head>
-        <ColorSchemeScript defaultColorScheme="light" />
+        <ColorSchemeScript defaultColorScheme="dark" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <body>

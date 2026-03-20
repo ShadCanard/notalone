@@ -79,7 +79,6 @@ export default function RegisterPage() {
       <Center
         style={{
           minHeight: '100vh',
-          background: 'linear-gradient(135deg, #F6FBFF 0%, #EAF7FF 50%, #D6F0FF 100%)',
         }}
       >
         <Container size={440} px="md" py="xl">
@@ -93,7 +92,7 @@ export default function RegisterPage() {
             </Text>
           </Stack>
 
-          <Card radius="xl" padding="xl" shadow="md" bg="white">
+          <Card radius="xl" padding="xl" shadow="md">
             <form onSubmit={handleSubmit}>
               <Stack gap="md">
                 {error && (
