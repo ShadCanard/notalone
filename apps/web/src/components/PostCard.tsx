@@ -6,31 +6,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect } from 'react';
 import { notifications } from '@mantine/notifications';
 import { getUploadUrl } from '@/lib/uploads';
+import ViewImageModal from '@/components/ViewImageModal';
+import AudioPlayer from '@/components/AudioPlayer';
+import { Post } from '@/types';
+import { getTimeAgo, parseDate } from '@/lib/tools';
 
 interface PostCardProps {
-  post: {
-    id: string;
-    content: string;
-    mood?: string;
-    createdAt: string;
-    likesCount: number;
-    commentsCount: number;
-    isLikedByMe: boolean;
-    author: {
-      id: string;
-      username: string;
-      firstName?: string;
-      lastName?: string;
-      avatar?: string;
-    };
-    comments: Array<{
-      id: string;
-      content: string;
-      createdAt: string;
-      author: { id: string; username: string; avatar?: string };
-    }>;
-    attachments?: Array<{ id: string; filename: string; path: string; mimeType?: string; size?: number; createdAt?: string }>;
-  };
+  post: Post;
 }
 
 const moodEmojis: Record<string, string> = {
@@ -82,12 +64,10 @@ export default function PostCard({ post }: PostCardProps) {
     ? `${post.author.firstName} ${post.author.lastName || ''}`.trim()
     : post.author.username;
 
-  function parseDate(s: string) {
-    const n = Number(s);
-    return isNaN(n) ? new Date(String(s)) : new Date(n);
-  }
-
   const timeAgo = getTimeAgo(parseDate(post.createdAt));
+
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   return (
     <Card shadow="sm" padding="lg" radius="lg" withBorder style={{ borderColor: '#EAF7FF' }}>
@@ -129,14 +109,22 @@ export default function PostCard({ post }: PostCardProps) {
       </Text>
 
       {post.attachments && post.attachments.length > 0 && (
-        <Stack spacing="xs" mb="md">
+        <Stack gap="xs" mb="md">
           {post.attachments.map((a) => (
             <div key={a.id}>
               {a.mimeType?.startsWith('image/') ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={getUploadUrl(a.path)} alt={a.filename} style={{ maxWidth: '100%', borderRadius: 8 }} />
+                <img
+                  src={getUploadUrl(a.path)}
+                  alt={a.filename}
+                  style={{ maxWidth: '100%', borderRadius: 8, cursor: 'pointer' }}
+                  onClick={() => {
+                    setSelectedImage(a.path);
+                    setImageModalOpen(true);
+                  }}
+                />
               ) : a.mimeType?.startsWith('audio/') ? (
-                <audio controls src={getUploadUrl(a.path)} style={{ width: '100%' }} />
+                <AudioPlayer src={a.path} filename={a.filename} />
               ) : (
                 <a href={getUploadUrl(a.path)} target="_blank" rel="noreferrer">{a.filename}</a>
               )}
@@ -144,6 +132,13 @@ export default function PostCard({ post }: PostCardProps) {
           ))}
         </Stack>
       )}
+
+      <ViewImageModal
+        opened={imageModalOpen}
+        onClose={() => setImageModalOpen(false)}
+        imageSrc={selectedImage || ''}
+        post={post}
+      />
 
       <Group justify="space-between">
         <Group gap="lg">
@@ -223,18 +218,4 @@ export default function PostCard({ post }: PostCardProps) {
       )}
     </Card>
   );
-}
-
-function getTimeAgo(date: Date): string {
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
-  const minutes = Math.floor(diff / 60000);
-  const hours = Math.floor(diff / 3600000);
-  const days = Math.floor(diff / 86400000);
-
-  if (minutes < 1) return "à l'instant";
-  if (minutes < 60) return `il y a ${minutes}min`;
-  if (hours < 24) return `il y a ${hours}h`;
-  if (days < 7) return `il y a ${days}j`;
-  return date.toLocaleDateString('fr-FR');
 }

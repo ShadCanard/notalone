@@ -1,7 +1,9 @@
-import { Card, Textarea, Button, Group, Select, Switch, Stack, FileButton, Text } from '@mantine/core';
+import { Card, Textarea, Button, Group, Select, Switch, Stack, FileButton, Text, Image, CloseButton, ActionIcon, Badge } from '@mantine/core';
+import { IconMicrophone } from '@tabler/icons-react';
 import { useForm } from '@mantine/form';
 import { useCreatePost, useUploadAttachments } from '@/hooks/useApi';
 import { notifications } from '@mantine/notifications';
+import { useEffect, useRef, useState } from 'react';
 
 const moodOptions = [
   { value: 'happy', label: '😊 Content(e)' },
@@ -32,19 +34,89 @@ export default function CreatePostForm() {
     },
   });
 
+  const [previews, setPreviews] = useState<Array<{ url: string; name: string; type: string }>>([]);
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = (useRef as any) ? useRef<MediaRecorder | null>(null) : null;
+  const mediaStreamRef = (useRef as any) ? useRef<MediaStream | null>(null) : null;
+  const chunksRef = (useRef as any) ? useRef<Blob[]>([]) : null;
+
+  useEffect(() => {
+    // create object URLs for previews
+    const files: File[] = (form.values as any).files || [];
+    // revoke old
+    setPreviews((prev) => {
+      prev.forEach((p) => URL.revokeObjectURL(p.url));
+      return [];
+    });
+    const next = files.map((f) => ({ url: URL.createObjectURL(f), name: f.name, type: f.type }));
+    setPreviews(next);
+    return () => {
+      next.forEach((p) => URL.revokeObjectURL(p.url));
+    };
+  }, [(form.values as any).files]);
+
+  // handle microphone recording
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (mediaStreamRef) mediaStreamRef.current = stream;
+      const mr = new MediaRecorder(stream);
+      if (mediaRecorderRef) mediaRecorderRef.current = mr;
+      chunksRef && (chunksRef.current = []);
+      mr.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) chunksRef && chunksRef.current.push(e.data);
+      };
+      mr.onstop = () => {
+        const blob = new Blob(chunksRef ? chunksRef.current : [], { type: 'audio/webm' });
+        const file = new File([blob], `voice-${Date.now()}.webm`, { type: blob.type });
+        const prev = (form.values as any).files || [];
+        form.setFieldValue('files', [...prev, file]);
+        setIsRecording(false);
+        // release stream tracks
+        if (mediaStreamRef && mediaStreamRef.current) {
+          mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+          mediaStreamRef.current = null;
+        }
+      };
+      mr.start();
+      setIsRecording(true);
+    } catch (err) {
+      notifications.show({ title: 'Micro inaccessible', message: 'Autorise l\'accès au micro dans ton navigateur.', color: 'red' });
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef && mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(false);
+  };
+
   const handleSubmit = form.onSubmit(async (values) => {
     try {
       let attachmentIds: string[] | undefined = undefined;
       if (values.files && values.files.length > 0) {
-        const res = await uploadAttachments.mutateAsync(values.files as File[]);
-        attachmentIds = res.attachments.map((a) => a.id);
+        try {
+          const res = await uploadAttachments.mutateAsync(values.files as File[]);
+          const attachments = res?.attachments || [];
+          const valid = attachments.filter((a) => a && a.id);
+          if (valid.length !== attachments.length) {
+            notifications.show({ title: 'Upload partiel', message: 'Certaines pièces jointes n\'ont pas été acceptées.', color: 'yellow' });
+          }
+          attachmentIds = valid.map((a) => a.id);
+        } catch (err: any) {
+          const message = err?.message || 'Échec de l\'upload des fichiers';
+          notifications.show({ title: 'Erreur upload', message, color: 'red' });
+          return;
+        }
       }
 
       await createPost.mutateAsync({ content: values.content, mood: values.mood || undefined, isPublic: values.isPublic, attachmentIds });
       form.reset();
       notifications.show({ title: 'Post publié !', message: 'Merci de partager avec la communauté 💙', color: 'green' });
-    } catch (e) {
-      notifications.show({ title: 'Erreur', message: 'Impossible de publier le post. Réessaie.', color: 'red' });
+    } catch (e: any) {
+      const msg = e?.message || 'Impossible de publier le post. Réessaie.';
+      notifications.show({ title: 'Erreur', message: msg, color: 'red' });
     }
   });
 
@@ -52,6 +124,27 @@ export default function CreatePostForm() {
     <Card shadow="sm" padding="lg" radius="lg" withBorder style={{ borderColor: '#EAF7FF' }}>
       <form onSubmit={handleSubmit}>
         <Stack gap="md">
+            {previews.length > 0 && (
+              <Group spacing="md" mb="sm">
+                {previews.map((p, idx) => (
+                  <Card key={p.url} shadow="sm" padding="xs" radius="md" style={{ width: 160, position: 'relative' }}>
+                    <CloseButton size="sm" style={{ position: 'absolute', right: 6, top: 6 }} onClick={() => {
+                      const prev: File[] = (form.values as any).files || [];
+                      const next = prev.filter((_, i) => i !== idx);
+                      form.setFieldValue('files', next);
+                      setPreviews((pv) => pv.filter((_, i) => i !== idx));
+                    }} />
+                    {p.type.startsWith('image/') ? (
+                      <Image src={p.url} alt={p.name} width={150} height={100} fit="cover" />
+                    ) : p.type.startsWith('audio/') ? (
+                      <audio controls src={p.url} style={{ width: '100%' }} />
+                    ) : (
+                      <a href={p.url} target="_blank" rel="noreferrer">{p.name}</a>
+                    )}
+                  </Card>
+                ))}
+              </Group>
+            )}
           <Textarea
             placeholder="Comment te sens-tu aujourd'hui ? Partage tes pensées, tes victoires, ou ce qui te pèse... Tu n'es pas seul(e) 🧡"
             autosize
@@ -85,12 +178,20 @@ export default function CreatePostForm() {
               >
                 {(props) => <Button {...props}>Ajouter fichier</Button>}
               </FileButton>
-              {(form.values as any).files && (form.values as any).files.length > 0 && (
-                <Text size="xs" c="dimmed">{(form.values as any).files.map((f: File) => f.name).join(', ')}</Text>
-              )}
+              <ActionIcon
+                variant="filled"
+                color={isRecording ? 'red' : 'gray'}
+                onClick={() => (isRecording ? stopRecording() : startRecording())}
+                title={isRecording ? 'Arrêter l\'enregistrement' : 'Enregistrer un message vocal'}
+                style={{ marginLeft: 8 }}
+              >
+                <IconMicrophone />
+              </ActionIcon>
+              {isRecording && <Badge color="red" variant="dot" ml={8}>Enregistrement...</Badge>}
+              {/* filenames are shown as previews above textarea; no inline list */}
             </Group>
 
-            <Button type="submit" color="pastelBlue" loading={createPost.isPending}>
+            <Button type="submit" color="pastelBlue" loading={createPost.isPending || uploadAttachments.isLoading}>
               Partager
             </Button>
           </Group>

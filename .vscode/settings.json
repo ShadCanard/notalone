@@ -1,4 +1,6 @@
 {
     "prisma.pinToPrisma6": true,
-    "workbench.browser.enableChatTools": true
+    "workbench.browser.enableChatTools": true,
+    "WillLuke.nextjs.addTypesOnSave": true,
+    "WillLuke.nextjs.hasPrompted": true
 }

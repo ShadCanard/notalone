@@ -4,6 +4,11 @@
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "lib": ["es2022"],
+    "baseUrl": ".",
+    "paths": {
+      "@/types": ["../../types"],
+      "@/types/*": ["../../types/*"]
+    },
     "outDir": "dist",
     "rootDir": "src",
     "strict": true,

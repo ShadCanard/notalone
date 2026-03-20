@@ -299,10 +299,10 @@ export function usePosts(limit = 20, offset = 0) {
   });
 }
 
-export function usePost(id?: string) {
+export function usePost(id?: string, enabled = true) {
   return useQuery({
     queryKey: ['post', id],
-    enabled: !!id,
+    enabled: enabled && !!id,
     queryFn: () => graphqlClient.request<{ post: Post }>(POST_QUERY, { id }),
   });
 }

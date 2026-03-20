@@ -13,7 +13,7 @@
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
-        "panel": "new",
+        "panel": "shared",
         "group": "dev"
       }
     },
@@ -26,7 +26,7 @@
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
-        "panel": "new",
+        "panel": "shared",
         "group": "dev"
       }
     },
@@ -39,7 +39,7 @@
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
-        "panel": "new",
+        "panel": "shared",
         "group": "dev"
       }
     },
@@ -52,7 +52,7 @@
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
-        "panel": "new",
+        "panel": "shared",
         "group": "prisma"
       }
     },

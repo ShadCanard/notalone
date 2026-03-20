@@ -54,7 +54,11 @@ export const resolvers = {
             attachments: true,
           },
         });
-        return posts.map((p) => sanitizePostForPublic(p, context));
+        return posts.map((p) => {
+          const sanitized = sanitizePostForPublic(p, context) as Record<string, unknown>;
+          const liked = context.user ? (p.likes ?? []).some((l: any) => (l.user?.id ?? l.userId) === context.user!.userId) : false;
+          return { ...sanitized, isLikedByMe: liked };
+        });
       },
 
       post: async (_parent: any, args: { id: string }, context: Context) => {
@@ -67,7 +71,10 @@ export const resolvers = {
             attachments: true,
           },
         });
-        return sanitizePostForPublic(p, context);
+        if (!p) return null;
+        const sanitized = sanitizePostForPublic(p, context) as Record<string, unknown>;
+        const liked = context.user ? (p.likes ?? []).some((l: any) => (l.user?.id ?? l.userId) === context.user!.userId) : false;
+        return { ...sanitized, isLikedByMe: liked };
       },
 
       myPosts: async (_parent: any, _args: any, context: Context) => {
@@ -82,7 +89,11 @@ export const resolvers = {
             attachments: true,
           },
         });
-        return posts.map((p) => sanitizePostForPublic(p, context));
+        return posts.map((p) => {
+          const sanitized = sanitizePostForPublic(p, context) as Record<string, unknown>;
+          const liked = context.user ? (p.likes ?? []).some((l: any) => (l.user?.id ?? l.userId) === context.user!.userId) : false;
+          return { ...sanitized, isLikedByMe: liked };
+        });
       },
 
       messages: async (_parent: any, args: { userId: string }, context: Context) => {

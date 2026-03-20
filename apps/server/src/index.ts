@@ -112,7 +112,7 @@ app.post('/upload/avatar', (req, res) => {
 
 // attachments upload (images + audio), support multiple files and dedup via checksum+size
 const attachmentsStorage = multer.memoryStorage();
-const ATTACHMENTS_MIMES = [...ALLOWED_MIMES, 'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg'];
+const ATTACHMENTS_MIMES = [...ALLOWED_MIMES, 'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/webm'];
 const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024; // 10 MB
 const attachmentsUpload = multer({ storage: attachmentsStorage, limits: { fileSize: MAX_ATTACHMENT_SIZE } });
 
