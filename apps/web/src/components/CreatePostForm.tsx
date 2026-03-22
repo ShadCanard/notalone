@@ -125,7 +125,7 @@ export default function CreatePostForm() {
       <form onSubmit={handleSubmit}>
         <Stack gap="md">
             {previews.length > 0 && (
-              <Group spacing="md" mb="sm">
+              <Group gap="md" style={{ marginBottom: 8 }}>
                 {previews.map((p, idx) => (
                   <Card key={p.url} shadow="sm" padding="xs" radius="md" style={{ width: 160, position: 'relative' }}>
                     <CloseButton size="sm" style={{ position: 'absolute', right: 6, top: 6 }} onClick={() => {
@@ -191,7 +191,7 @@ export default function CreatePostForm() {
               {/* filenames are shown as previews above textarea; no inline list */}
             </Group>
 
-            <Button type="submit" color="pastelBlue" loading={createPost.isPending || uploadAttachments.isLoading}>
+            <Button type="submit" color="pastelBlue" loading={createPost.isPending || uploadAttachments.isPending}>
               Partager
             </Button>
           </Group>

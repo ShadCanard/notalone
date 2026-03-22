@@ -10,6 +10,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
+import { spawn } from 'child_process';
 
 const app = express();
 
@@ -151,7 +152,79 @@ app.post('/upload/attachments', (req, res) => {
         const outPath = path.join(dir, safe);
         fs.writeFileSync(outPath, buffer);
 
-        const db = await prisma.attachment.create({ data: { filename: file.originalname, path: `/uploads/attachments/${safe}`, mimeType: file.mimetype, checksum: hash, size } });
+        const db = await prisma.attachment.create({ data: { filename: file.originalname, path: `/uploads/attachments/${safe}`, mimeType: file.mimetype, checksum: hash, size, data: {} } as any });
+
+        // If audio file, try to extract waveform using ffmpeg (exports PCM s16le to stdout)
+        if (file.mimetype && file.mimetype.startsWith('audio/')) {
+          try {
+            const waveform: number[] = await new Promise((resolve, reject) => {
+              const outChunks: Buffer[] = [];
+              const ff = spawn('ffmpeg', ['-i', 'pipe:0', '-f', 's16le', '-acodec', 'pcm_s16le', '-ac', '1', '-ar', '44100', 'pipe:1']);
+              ff.stdout.on('data', (c: Buffer) => outChunks.push(c));
+              // collect stderr to avoid EPIPE issues on some ffmpeg versions
+              ff.stderr.on('data', () => {});
+              ff.on('error', (err) => reject(err));
+              ff.on('close', (code) => {
+                try {
+                  const raw = Buffer.concat(outChunks);
+                  const sampleCount = Math.floor(raw.length / 2);
+                  if (sampleCount === 0) return resolve([]);
+                  const samples = new Int16Array(raw.buffer, raw.byteOffset, sampleCount);
+                  const segments = 40;
+                  const segSize = Math.floor(sampleCount / segments) || 1;
+                  const wf: number[] = [];
+                  for (let i = 0; i < segments; i++) {
+                    const start = i * segSize;
+                    const end = i === segments - 1 ? sampleCount : start + segSize;
+                    let sum = 0;
+                    for (let s = start; s < end; s++) {
+                      const v = samples[s];
+                      sum += v * v;
+                    }
+                    const rms = Math.sqrt(sum / (end - start)) / 32768;
+                    wf.push(Number(rms.toFixed(4)));
+                  }
+                  return resolve(wf);
+                } catch (e) {
+                  return reject(e);
+                }
+              });
+              // write buffer to ffmpeg stdin
+              ff.stdin.write(buffer);
+              ff.stdin.end();
+            });
+
+            if (waveform && waveform.length > 0) {
+              await prisma.attachment.update({ where: { id: db.id }, data: { data: { waveform } } as any });
+              (db as any).data = { waveform };
+            }
+          } catch (e) {
+            // fallback: approximate waveform from raw bytes if ffmpeg isn't available
+            try {
+              const segments = 40;
+              const wf: number[] = [];
+              const bytes = buffer;
+              const segSize = Math.floor(bytes.length / segments) || 1;
+              for (let i = 0; i < segments; i++) {
+                const start = i * segSize;
+                const end = i === segments - 1 ? bytes.length : start + segSize;
+                let sum = 0;
+                for (let j = start; j < end; j++) {
+                  const v = bytes[j] - 128;
+                  sum += v * v;
+                }
+                const rms = Math.sqrt(sum / (end - start)) / 128;
+                wf.push(Number(rms.toFixed(4)));
+              }
+              await prisma.attachment.update({ where: { id: db.id }, data: { data: { waveform: wf } } as any });
+              (db as any).data = { waveform: wf };
+            } catch (err) {
+              // ignore waveform extraction errors
+              console.warn('waveform extraction failed', err);
+            }
+          }
+        }
+
         results.push({ existing: false, attachment: db });
       }
 
@@ -173,7 +246,7 @@ app.listen(PORT, () => {
 // Public user info (sanitized) - GET /api/v1/users/:id
 app.get('/api/v1/users/:id', async (req, res) => {
   try {
-    const dbUser = await prisma.user.findUnique({ where: { id: String(req.params.id) }, include: { posts: true } });
+    const dbUser = await prisma.user.findUnique({ where: { id: String(req.params.id) }, include: { posts: { orderBy: { createdAt: 'desc' } } } });
     if (!dbUser) return res.status(404).json({ error: 'User not found', code: 'NOT_FOUND' });
     // build minimal public projection
     const publicUser: any = {

@@ -88,6 +88,7 @@ model Attachment {
   filename  String
   path      String
   mimeType  String?
+  data      Json?
   checksum  String
   size      Int
   createdAt DateTime @default(now())

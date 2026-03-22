@@ -7,7 +7,7 @@ import { usePosts } from '@/hooks/useApi';
 import { useAuth } from '@/contexts/AuthContext';
 import Head from 'next/head';
 
-export default function Home(props) {
+export default function Home() {
   const { isAuthenticated } = useAuth();
   const { data, isLoading, error } = usePosts();
 

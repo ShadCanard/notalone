@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { graphqlClient } from '@/lib/graphql-client';
+import type { User, Post as PostType, Attachment as AttachmentType, Comment as CommentType, Like, Message, AuthPayload } from '@/types';
 import { gql } from 'graphql-request';
 
 // --- Auth Queries ---
@@ -65,7 +66,7 @@ const POSTS_QUERY = gql`
       mood
       isPublic
       createdAt
-      attachments { id filename path mimeType size createdAt }
+      attachments { id filename path mimeType size createdAt data }
       likesCount
       commentsCount
       isLikedByMe
@@ -98,7 +99,7 @@ const CREATE_POST_MUTATION = gql`
       mood
       isPublic
       createdAt
-      attachments { id filename path mimeType size createdAt }
+      attachments { id filename path mimeType size createdAt data }
       likesCount
       commentsCount
       isLikedByMe
@@ -121,7 +122,7 @@ const POST_QUERY = gql`
       mood
       isPublic
       createdAt
-      attachments { id filename path mimeType size createdAt }
+      attachments { id filename path mimeType size createdAt data }
       likesCount
       commentsCount
       isLikedByMe
@@ -225,7 +226,7 @@ const USER_QUERY = gql`
         mood
         isPublic
         createdAt
-        attachments { id filename path mimeType size createdAt }
+        attachments { id filename path mimeType size createdAt data }
         likesCount
         commentsCount
         isLikedByMe
@@ -253,44 +254,31 @@ const DELETE_USER_MUTATION = gql`
 
 // --- Hooks ---
 
-interface AuthResponse {
-  login?: { token: string; user: { id: string; email: string; username: string; firstName?: string; lastName?: string; bio?: string; avatar?: string } };
-  register?: { token: string; user: { id: string; email: string; username: string; firstName?: string; lastName?: string; bio?: string; avatar?: string } };
-}
+// Use shared `AuthPayload` for login/register responses
 
 export function useLogin() {
   return useMutation({
     mutationFn: (variables: { identifier: string; password: string }) =>
-      graphqlClient.request<AuthResponse>(LOGIN_MUTATION, variables),
+      graphqlClient.request<{ login: AuthPayload }>(LOGIN_MUTATION, variables),
   });
 }
 
 export function useRegister() {
   return useMutation({
     mutationFn: (variables: { email: string; username: string; password: string; firstName?: string; lastName?: string }) =>
-      graphqlClient.request<AuthResponse>(REGISTER_MUTATION, variables),
+      graphqlClient.request<{ register: AuthPayload }>(REGISTER_MUTATION, variables),
   });
 }
 
 export function useMe() {
   return useQuery({
     queryKey: ['me'],
-    queryFn: () => graphqlClient.request<{ me: { id: string; email: string; username: string; firstName?: string; lastName?: string; bio?: string; avatar?: string } | null }>(ME_QUERY),
+    queryFn: () => graphqlClient.request<{ me: User | null }>(ME_QUERY),
   });
 }
 
-interface Post {
-  id: string;
-  content: string;
-  mood?: string;
-  isPublic: boolean;
-  createdAt: string;
-  likesCount: number;
-  commentsCount: number;
-  isLikedByMe: boolean;
-  author: { id: string; username: string; firstName?: string; lastName?: string; avatar?: string };
-  comments: Array<{ id: string; content: string; createdAt: string; author: { id: string; username: string; avatar?: string } }>;
-}
+// Use shared `Post` type from `@/types`
+type Post = PostType;
 
 export function usePosts(limit = 20, offset = 0) {
   return useQuery({
@@ -311,7 +299,7 @@ export function useCreatePost() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (variables: { content: string; mood?: string; isPublic?: boolean; attachmentIds?: string[] }) =>
-      graphqlClient.request(CREATE_POST_MUTATION, variables),
+      graphqlClient.request<{ createPost: Post }>(CREATE_POST_MUTATION, variables),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['posts'] });
     },
@@ -322,7 +310,7 @@ export function useToggleLike() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (variables: { postId: string }) =>
-      graphqlClient.request(TOGGLE_LIKE_MUTATION, variables),
+      graphqlClient.request<{ toggleLike: boolean }>(TOGGLE_LIKE_MUTATION, variables),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['posts'] });
     },
@@ -333,7 +321,7 @@ export function useCreateComment() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (variables: { postId: string; content: string }) =>
-      graphqlClient.request(CREATE_COMMENT_MUTATION, variables),
+      graphqlClient.request<{ createComment: CommentType }>(CREATE_COMMENT_MUTATION, variables),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['posts'] });
     },
@@ -344,14 +332,14 @@ export function useMessages(userId?: string) {
   return useQuery({
     queryKey: ['messages', userId],
     enabled: !!userId,
-    queryFn: () => graphqlClient.request<{ messages: Array<{ id: string; content: string; createdAt: string; sender: { id: string; username: string; avatar?: string }; receiver: { id: string; username: string; avatar?: string } }> }>(MESSAGES_QUERY, { userId }),
+    queryFn: () => graphqlClient.request<{ messages: Message[] }>(MESSAGES_QUERY, { userId }),
   });
 }
 
 export function useSendMessage() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (variables: { receiverId: string; content: string }) => graphqlClient.request(SEND_MESSAGE_MUTATION, variables),
+    mutationFn: (variables: { receiverId: string; content: string }) => graphqlClient.request<{ sendMessage: Message }>(SEND_MESSAGE_MUTATION, variables),
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['messages', vars.receiverId] });
     },
@@ -408,7 +396,7 @@ export function useUploadAttachments() {
         throw new Error(text || 'Upload failed');
       }
       const data = await res.json();
-      return data as { attachments: Array<{ id: string; filename: string; path: string; mimeType?: string; checksum: string; size: number; createdAt: string }> };
+      return data as { attachments: AttachmentType[] };
     },
   });
 }
@@ -416,7 +404,7 @@ export function useUploadAttachments() {
 export function useUsers() {
   return useQuery({
     queryKey: ['users'],
-    queryFn: () => graphqlClient.request<{ users: Array<{ id: string; email: string; username: string; firstName?: string; lastName?: string; bio?: string; avatar?: string; createdAt: string; role?: string }> }>(USERS_QUERY),
+    queryFn: () => graphqlClient.request<{ users: User[] }>(USERS_QUERY),
   });
 }
 
@@ -424,14 +412,14 @@ export function useUser(id?: string) {
   return useQuery({
     queryKey: ['user', id],
     enabled: !!id,
-    queryFn: () => graphqlClient.request<{ user: { id: string; email: string; username: string; firstName?: string; lastName?: string; bio?: string; avatar?: string; createdAt: string; role?: string } }>(USER_QUERY, { id }),
+    queryFn: () => graphqlClient.request<{ user: User & { posts?: Post[] } }>(USER_QUERY, { id }),
   });
 }
 
 export function useUpdateUserRole() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (variables: { userId: string; role: string }) => graphqlClient.request(UPDATE_USER_ROLE_MUTATION, variables),
+    mutationFn: (variables: { userId: string; role: string }) => graphqlClient.request<{ updateUserRole: User }>(UPDATE_USER_ROLE_MUTATION, variables),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       queryClient.invalidateQueries({ queryKey: ['me'] });
@@ -442,7 +430,7 @@ export function useUpdateUserRole() {
 export function useDeleteUser() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (variables: { id: string }) => graphqlClient.request(DELETE_USER_MUTATION, variables),
+    mutationFn: (variables: { id: string }) => graphqlClient.request<{ deleteUser: boolean }>(DELETE_USER_MUTATION, variables),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
     },

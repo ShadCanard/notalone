@@ -1,17 +1,49 @@
 import { Context } from "./schema";
+import { GraphQLScalarType, Kind } from 'graphql';
 import { generateToken } from "./auth";
 import { convertDates, hasRole, sanitizeUserForPublic, requireRole, sanitizePostForPublic, requireAuth } from "./libs/tools";
 import prisma from "./prisma";
 import bcrypt from 'bcryptjs';
 
 export const resolvers = {
+    JSON: new GraphQLScalarType({
+      name: 'JSON',
+      description: 'Arbitrary JSON value',
+      parseValue: (v) => v,
+      serialize: (v) => v,
+      parseLiteral: (ast: any) => {
+        const parse = (node: any): any => {
+          switch (node.kind) {
+            case Kind.STRING:
+            case Kind.BOOLEAN:
+              return node.value;
+            case Kind.INT:
+            case Kind.FLOAT:
+              return Number(node.value);
+            case Kind.OBJECT:
+              const obj: any = {};
+              for (const field of node.fields) {
+                obj[field.name.value] = parse(field.value);
+              }
+              return obj;
+            case Kind.LIST:
+              return node.values.map(parse);
+            case Kind.NULL:
+              return null;
+            default:
+              return null;
+          }
+        };
+        return parse(ast);
+      },
+    }),
     Query: {
       me: async (_parent: any, _args: any, context: Context) => {
         if (!context.user) return null;
         const u = await prisma.user.findUnique({
           where: { id: context.user.userId },
           include: {
-            posts: { include: { author: true, comments: { include: { author: true } }, likes: { include: { user: true } } } },
+            posts: { orderBy: { createdAt: 'desc' }, include: { author: true, comments: { include: { author: true } }, likes: { include: { user: true } }, attachments: true } },
           },
         });
         return convertDates(u);
@@ -21,7 +53,7 @@ export const resolvers = {
         const u = await prisma.user.findUnique({
           where: { id: args.id },
           include: {
-            posts: { include: { author: true, comments: { include: { author: true } }, likes: { include: { user: true } } } },
+            posts: { orderBy: { createdAt: 'desc' }, include: { author: true, comments: { include: { author: true } }, likes: { include: { user: true } }, attachments: true } },
           },
         });
         if (!u) return null;
@@ -49,7 +81,7 @@ export const resolvers = {
           skip: args.offset ?? 0,
           include: {
             author: true,
-            comments: { include: { author: true } },
+              comments: { include: { author: true }, orderBy: { createdAt: 'desc' } },
             likes: { include: { user: true } },
             attachments: true,
           },
@@ -66,7 +98,7 @@ export const resolvers = {
           where: { id: args.id },
           include: {
             author: true,
-            comments: { include: { author: true }, orderBy: { createdAt: 'asc' } },
+              comments: { include: { author: true }, orderBy: { createdAt: 'desc' } },
             likes: { include: { user: true } },
             attachments: true,
           },
@@ -84,7 +116,7 @@ export const resolvers = {
           orderBy: { createdAt: 'desc' },
           include: {
             author: true,
-            comments: { include: { author: true } },
+              comments: { include: { author: true }, orderBy: { createdAt: 'desc' } },
             likes: { include: { user: true } },
             attachments: true,
           },
@@ -177,7 +209,7 @@ export const resolvers = {
           data,
           include: {
             author: true,
-            comments: { include: { author: true } },
+              comments: { include: { author: true }, orderBy: { createdAt: 'desc' } },
             likes: { include: { user: true } },
             attachments: true,
           },
@@ -310,7 +342,7 @@ export const resolvers = {
         const posts = await prisma.post.findMany({
           where: { authorId: parent['id'] as string },
           orderBy: { createdAt: 'desc' },
-          include: { author: true, comments: { include: { author: true } }, likes: { include: { user: true } } },
+          include: { author: true, comments: { include: { author: true } }, likes: { include: { user: true } }, attachments: true },
         });
         return posts.map((p) => sanitizePostForPublic(p, context));
       },

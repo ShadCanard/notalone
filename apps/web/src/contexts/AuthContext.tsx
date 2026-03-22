@@ -1,16 +1,6 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { setAuthToken } from '@/lib/graphql-client';
-
-interface User {
-  id: string;
-  email: string;
-  username: string;
-  firstName?: string;
-  lastName?: string;
-  bio?: string;
-  avatar?: string;
-  role?: string;
-}
+import type { User } from '@/types';
 
 interface AuthContextType {
   user: User | null;

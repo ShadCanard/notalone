@@ -27,6 +27,8 @@ export const typeDefs = /* GraphQL */ `
       isLikedByMe: Boolean!
     }
 
+    scalar JSON
+
     type Attachment {
       id: ID!
       filename: String!
@@ -35,6 +37,7 @@ export const typeDefs = /* GraphQL */ `
       checksum: String!
       size: Int!
       createdAt: String!
+      data: JSON
     }
 
     type Comment {
