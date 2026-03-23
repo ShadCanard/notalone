@@ -149,6 +149,25 @@ export const resolvers = {
           };
         });
       },
+
+      notifications: async (_parent: any, args: { limit?: number; offset?: number }, context: Context) => {
+        if (!context.user) throw new Error('Non authentifié');
+        const notes = await prisma.notification.findMany({
+          where: { userId: context.user.userId },
+          orderBy: { createdAt: 'desc' },
+          take: args.limit ?? 20,
+          skip: args.offset ?? 0,
+          include: { author: true, user: true },
+        });
+        return notes.map((n) => {
+          const nn = convertDates(n as any) as any;
+          return {
+            ...nn,
+            author: sanitizeUserForPublic((n as any).author, context),
+            user: sanitizeUserForPublic((n as any).user, context),
+          };
+        });
+      },
     },
 
     Mutation: {
@@ -239,6 +258,15 @@ export const resolvers = {
           },
           include: { author: true, post: true },
         });
+        // create notification for post author (if not commenting on own post)
+        try {
+          const postAuthorId = (created.post as any).authorId as string;
+          if (postAuthorId && postAuthorId !== context.user.userId) {
+            await prisma.notification.create({ data: { userId: postAuthorId, authorId: context.user.userId, type: 'NEW_COMMENT', linkId: args.postId } });
+          }
+        } catch (e) {
+          // ignore notification creation errors
+        }
         const c = convertDates(created);
         return { ...c, author: sanitizeUserForPublic(created.author, context) };
       },
@@ -257,9 +285,16 @@ export const resolvers = {
           await prisma.like.delete({ where: { id: existing.id } });
           return false;
         }
-        await prisma.like.create({
-          data: { userId: context.user.userId, postId: args.postId },
-        });
+        const createdLike = await prisma.like.create({ data: { userId: context.user.userId, postId: args.postId } });
+        // create notification for post author (if not liking own post)
+        try {
+          const post = await prisma.post.findUnique({ where: { id: args.postId } });
+          if (post && post.authorId !== context.user.userId) {
+            await prisma.notification.create({ data: { userId: post.authorId, authorId: context.user.userId, type: 'NEW_LIKE', linkId: args.postId } });
+          }
+        } catch (e) {
+          // ignore
+        }
         return true;
       },
 
@@ -292,6 +327,18 @@ export const resolvers = {
         });
         const mu = convertDates(updated);
         return { ...mu, sender: sanitizeUserForPublic(updated.sender, context), receiver: sanitizeUserForPublic(updated.receiver, context) };
+      },
+
+      markNotificationRead: async (_parent: any, args: { id: string }, context: Context) => {
+        requireAuth(context);
+        const note = await prisma.notification.findUnique({ where: { id: args.id } });
+        if (!note) throw new Error('Notification introuvable');
+        if (note.userId !== context.user!.userId && !hasRole(context, 'MODERATOR') && !hasRole(context, 'ADMIN')) {
+          throw new Error('Non autorisé');
+        }
+        const updated = await prisma.notification.update({ where: { id: args.id }, data: { read: true }, include: { author: true, user: true } });
+        const nn = convertDates(updated as any) as any;
+        return { ...nn, author: sanitizeUserForPublic(updated.author, context), user: sanitizeUserForPublic(updated.user, context) };
       },
 
       updateProfile: async (_parent: any, args: { firstName?: string; lastName?: string; bio?: string; avatar?: string; userId?: string }, context: Context) => {

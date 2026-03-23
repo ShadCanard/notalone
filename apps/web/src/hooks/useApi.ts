@@ -166,6 +166,28 @@ const MESSAGES_QUERY = gql`
   }
 `;
 
+const NOTIFICATIONS_QUERY = gql`
+  query Notifications($limit: Int, $offset: Int) {
+    notifications(limit: $limit, offset: $offset) {
+      id
+      type
+      linkId
+      read
+      createdAt
+      author { id username avatar }
+    }
+  }
+`;
+
+const MARK_NOTIFICATION_READ_MUTATION = gql`
+  mutation MarkNotificationRead($id: ID!) {
+    markNotificationRead(id: $id) {
+      id
+      read
+    }
+  }
+`;
+
 const SEND_MESSAGE_MUTATION = gql`
   mutation SendMessage($receiverId: ID!, $content: String!) {
     sendMessage(receiverId: $receiverId, content: $content) {
@@ -333,6 +355,24 @@ export function useMessages(userId?: string) {
     queryKey: ['messages', userId],
     enabled: !!userId,
     queryFn: () => graphqlClient.request<{ messages: Message[] }>(MESSAGES_QUERY, { userId }),
+  });
+}
+
+export function useNotifications(limit = 20, offset = 0) {
+  return useQuery({
+    queryKey: ['notifications', limit, offset],
+    queryFn: () => graphqlClient.request<{ notifications: Array<any> }>(NOTIFICATIONS_QUERY, { limit, offset }),
+  });
+}
+
+export function useMarkNotificationRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (variables: { id: string }) => graphqlClient.request<{ markNotificationRead: { id: string; read: boolean } }>(MARK_NOTIFICATION_READ_MUTATION, variables),
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['me'] });
+    },
   });
 }
 

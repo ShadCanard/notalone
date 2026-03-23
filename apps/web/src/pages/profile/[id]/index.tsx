@@ -8,7 +8,7 @@ import { Container, Title, Text, Card, Center, Loader, Avatar, Stack, Button } f
 import { getUploadUrl } from '@/lib/uploads';
 import PostCard from '@/components/PostCard';
 
-export default function PublicProfilePage() {
+export default function PublicProfilePage(props) {
   const router = useRouter();
   const { id } = router.query;
   const { data, isLoading } = useUser(typeof id === 'string' ? id : undefined);
@@ -70,3 +70,6 @@ export default function PublicProfilePage() {
     </Layout>
   );
 }
+
+// helper export to ensure module is picked up by Turbopack
+export const __profilePagePresent = true;

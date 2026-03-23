@@ -68,6 +68,16 @@ export interface Message {
   receiver: User;
 }
 
+export interface Notification {
+  id: string;
+  user: User;
+  author: User;
+  type: 'NEW_COMMENT' | 'NEW_LIKE' | 'NEW_POST';
+  linkId: string;
+  read: boolean;
+  createdAt: string;
+}
+
 export interface AuthPayload {
   token: string;
   user: User;

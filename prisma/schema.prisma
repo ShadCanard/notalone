@@ -31,6 +31,8 @@ model User {
   likes     Like[]
   sentMessages     Message[] @relation("SentMessages")
   receivedMessages Message[] @relation("ReceivedMessages")
+  receivedNotifications Notification[] @relation("NotificationsReceived")
+  authoredNotifications Notification[] @relation("NotificationsAuthored")
 }
 
 model Post {
@@ -95,4 +97,24 @@ model Attachment {
 
   posts     Post[]
   @@index([checksum, size])
+}
+
+enum NotificationType {
+  NEW_COMMENT
+  NEW_LIKE
+  NEW_POST
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation("NotificationsReceived", fields: [userId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User             @relation("NotificationsAuthored", fields: [authorId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  linkId    String
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId, read])
 }

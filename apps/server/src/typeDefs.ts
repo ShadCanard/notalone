@@ -64,6 +64,22 @@ export const typeDefs = /* GraphQL */ `
       receiver: User!
     }
 
+    enum NotificationType {
+      NEW_COMMENT
+      NEW_LIKE
+      NEW_POST
+    }
+
+    type Notification {
+      id: ID!
+      user: User!
+      author: User!
+      type: NotificationType!
+      linkId: ID!
+      read: Boolean!
+      createdAt: String!
+    }
+
     type AuthPayload {
       token: String!
       user: User!
@@ -77,6 +93,7 @@ export const typeDefs = /* GraphQL */ `
       post(id: ID!): Post
       myPosts: [Post!]!
       messages(userId: ID!): [Message!]!
+      notifications(limit: Int, offset: Int): [Notification!]!
     }
 
     type Mutation {
@@ -88,6 +105,7 @@ export const typeDefs = /* GraphQL */ `
       toggleLike(postId: ID!): Boolean!
       sendMessage(receiverId: ID!, content: String!): Message!
       markMessageRead(id: ID!): Message!
+      markNotificationRead(id: ID!): Notification!
       updateProfile(firstName: String, lastName: String, bio: String, avatar: String, userId: ID): User!
       updateUserRole(userId: ID!, role: String!): User!
       deleteUser(id: ID!): Boolean!
