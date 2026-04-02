@@ -96,6 +96,10 @@ export const typeDefs = /* GraphQL */ `
       notifications(limit: Int, offset: Int): [Notification!]!
     }
 
+    type Subscription {
+      notificationReceived(userId: ID!): Notification!
+    }
+
     type Mutation {
       register(email: String!, username: String!, password: String!, firstName: String, lastName: String): AuthPayload!
       login(identifier: String!, password: String!): AuthPayload!

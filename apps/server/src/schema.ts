@@ -7,6 +7,7 @@ import { typeDefs } from './typeDefs.js';
 
 export interface Context {
   user: (TokenPayload & { role?: string }) | null;
+  pubsub: any;
 }
 
 export const schema = createSchema<Context>({

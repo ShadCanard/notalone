@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import { createYoga } from 'graphql-yoga';
+import { createPubSub } from '@graphql-yoga/subscription';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { schema, type Context } from './schema.js';
@@ -14,6 +15,8 @@ import { spawn } from 'child_process';
 
 const app = express();
 
+const pubsub = createPubSub();
+
 app.use(cors({
   origin: 'http://localhost:3000',
   credentials: true,
@@ -24,7 +27,16 @@ const yoga = createYoga<Context>({
   schema,
   graphiql: true,
   context: async ({ request }) => {
-    const authHeader = request.headers.get('authorization');
+    let authHeader: string | undefined | null = null;
+    if (request?.headers?.get) {
+      authHeader = request.headers.get('authorization');
+    } else if (request?.headers) {
+      authHeader = (request.headers as any).authorization || (request.headers as any).Authorization;
+    }
+    if (!authHeader && (request as any).connectionParams) {
+      authHeader = (request as any).connectionParams.authorization || (request as any).connectionParams.Authorization;
+    }
+
     let user = null;
     if (authHeader?.startsWith('Bearer ')) {
       const token = authHeader.slice(7);
@@ -35,7 +47,7 @@ const yoga = createYoga<Context>({
         user = { userId: payload.userId, email: payload.email, role: dbUser?.role };
       }
     }
-    return { user };
+    return { user, pubsub };
   },
 });
 
@@ -162,7 +174,7 @@ app.post('/upload/attachments', (req, res) => {
               const ff = spawn('ffmpeg', ['-i', 'pipe:0', '-f', 's16le', '-acodec', 'pcm_s16le', '-ac', '1', '-ar', '44100', 'pipe:1']);
               ff.stdout.on('data', (c: Buffer) => outChunks.push(c));
               // collect stderr to avoid EPIPE issues on some ffmpeg versions
-              ff.stderr.on('data', () => {});
+              ff.stderr.on('data', () => { });
               ff.on('error', (err) => reject(err));
               ff.on('close', (code) => {
                 try {
@@ -281,4 +293,4 @@ app.get('/api/v1/admin/users/:id', async (req, res) => {
     return res.status(500).json({ error: 'Server error', code: 'INTERNAL_ERROR' });
   }
 });
- 
+
