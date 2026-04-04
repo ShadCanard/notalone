@@ -73,26 +73,24 @@ export default function PostCard({ post }: PostCardProps) {
     <Card shadow="sm" padding="lg" radius="lg" withBorder style={{ borderColor: '#EAF7FF' }}>
       <Group justify="space-between" mb="sm">
         <Group>
-          <Link href={`/profile/${post.author.id}`} legacyBehavior>
-            <a style={{ display: 'inline-block' }}>
-              <Avatar src={getUploadUrl(post.author.avatar) || '/default-avatar.svg'} alt={post.author.username} radius="xl" color="pastelBlue">
-                {post.author.username.charAt(0).toUpperCase()}
-              </Avatar>
-            </a>
+          <Link href={`/profile/${post.author.id}`} style={{ display: 'inline-block' }}>
+            <Avatar src={getUploadUrl(post.author.avatar) || '/default-avatar.svg'} alt={post.author.username} radius="xl" color="pastelBlue">
+              {post.author.username.charAt(0).toUpperCase()}
+            </Avatar>
           </Link>
           <div>
             <Text fw={600} size="sm">
-              <Link href={`/profile/${post.author.id}`} legacyBehavior>
-                <a style={{ color: 'inherit', textDecoration: 'none' }}>{displayName}</a>
+              <Link href={`/profile/${post.author.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+                {displayName}
               </Link>
             </Text>
             <Text size="xs" c="dimmed">
-              <Link href={`/profile/${post.author.id}`} legacyBehavior>
-                <a style={{ color: 'inherit', textDecoration: 'none' }}>@{post.author.username}</a>
+              <Link href={`/profile/${post.author.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+                @{post.author.username}
               </Link>
               {' · '}
-              <Link href={`/posts/${post.id}`} legacyBehavior>
-                <a style={{ color: 'inherit', textDecoration: 'underline' }}>{timeAgo}</a>
+              <Link href={`/posts/${post.id}`} style={{ color: 'inherit', textDecoration: 'underline' }}>
+                {timeAgo}
               </Link>
             </Text>
           </div>
@@ -170,18 +168,16 @@ export default function PostCard({ post }: PostCardProps) {
         <Stack gap="sm" mt="md" pt="md" style={{ borderTop: '1px solid #EAF7FF' }}>
           {post.comments.map((comment) => (
             <Group key={comment.id} gap="sm" align="flex-start">
-              <Link href={`/profile/${comment.author.id}`} legacyBehavior>
-                <a style={{ display: 'inline-block' }}>
-                  <Avatar src={getUploadUrl(comment.author.avatar) || '/default-avatar.svg'} size="sm" radius="xl" color="pastelBlue">
-                    {comment.author.username.charAt(0).toUpperCase()}
-                  </Avatar>
-                </a>
+              <Link href={`/profile/${comment.author.id}`} style={{ display: 'inline-block' }}>
+                <Avatar src={getUploadUrl(comment.author.avatar) || '/default-avatar.svg'} size="sm" radius="xl" color="pastelBlue">
+                  {comment.author.username.charAt(0).toUpperCase()}
+                </Avatar>
               </Link>
               <div style={{ flex: 1 }}>
                 <Group gap="xs">
                   <Text size="sm" fw={600}>
-                    <Link href={`/profile/${comment.author.id}`} legacyBehavior>
-                      <a style={{ color: 'inherit', textDecoration: 'none' }}>@{comment.author.username}</a>
+                    <Link href={`/profile/${comment.author.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+                      @{comment.author.username}
                     </Link>
                   </Text>
                   <Text size="xs" c="dimmed">

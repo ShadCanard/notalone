@@ -17,3 +17,17 @@ export function getTimeAgo(date: Date): string {
   if (days < 7) return `il y a ${days}j`;
   return date.toLocaleDateString('fr-FR');
 }
+
+export function getNotificationText(notification: any): string {
+  const actor = notification.author?.username || 'Quelqu’un';
+  switch (notification.type) {
+    case 'NEW_COMMENT':
+      return `${actor} a commenté votre message`;
+    case 'NEW_LIKE':
+      return `${actor} a aimé votre message`;
+    case 'NEW_POST':
+      return `${actor} a publié un nouveau message`;
+    default:
+      return notification.type ? String(notification.type).replace(/_/g, ' ').toLowerCase() : 'Nouvelle notification';
+  }
+}

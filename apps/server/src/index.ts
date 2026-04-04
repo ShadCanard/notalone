@@ -1,5 +1,9 @@
 import 'dotenv/config';
 import express from 'express';
+import { createServer } from 'http';
+import { WebSocketServer } from 'ws';
+import { useServer } from 'graphql-ws/lib/use/ws';
+import { execute, subscribe } from 'graphql';
 import { createYoga } from 'graphql-yoga';
 import { createPubSub } from '@graphql-yoga/subscription';
 import cors from 'cors';
@@ -249,8 +253,39 @@ app.post('/upload/attachments', (req, res) => {
 });
 
 const PORT = process.env.PORT || 4000;
+const server = createServer(app);
 
-app.listen(PORT, () => {
+const wsServer = new WebSocketServer({ server, path: '/graphql' });
+const wsCleanup = useServer(
+  {
+    schema,
+    execute,
+    subscribe,
+    context: async (ctx: any) => {
+      const authHeader = typeof ctx.connectionParams === 'object' && ctx.connectionParams
+        ? (ctx.connectionParams.authorization || ctx.connectionParams.Authorization)
+        : null;
+
+      let user = null;
+      if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.slice(7);
+        const payload = verifyToken(token);
+        if (payload) {
+          const dbUser = await prisma.user.findUnique({ where: { id: payload.userId } });
+          user = { userId: payload.userId, email: payload.email, role: dbUser?.role };
+        }
+      }
+      return { user, pubsub };
+    },
+  },
+  wsServer
+);
+
+server.on('close', () => {
+  wsCleanup.dispose();
+});
+
+server.listen(PORT, () => {
   console.log(`🚀 Server ready at http://localhost:${PORT}/graphql`);
   console.log(`📊 GraphiQL available at http://localhost:${PORT}/graphql`);
 });
