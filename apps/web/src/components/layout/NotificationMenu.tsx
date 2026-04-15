@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Menu, Group, Text, Badge, ScrollArea, UnstyledButton } from '@mantine/core';
+import { Menu, Group, Text, Badge, ScrollArea, UnstyledButton, Avatar } from '@mantine/core';
 import { IconBell } from '@tabler/icons-react';
 import { useRouter } from 'next/router';
 import { useQueryClient } from '@tanstack/react-query';
 import { createClient } from 'graphql-ws';
+import { notifications as mantineNotifications } from '@mantine/notifications';
 import { useNotifications, useMarkNotificationRead } from '@/hooks/useApi';
 import { useAuth } from '@/contexts/AuthContext';
-import { getTimeAgo } from '@/lib/tools';
+import { getNotificationText, getTimeAgo } from '@/lib/tools';
 
 const NOTIFICATIONS_SUBSCRIPTION = `subscription NotificationReceived($userId: ID!) {
   notificationReceived(userId: $userId) {
@@ -64,6 +65,30 @@ export default function NotificationMenu() {
             return [payload, ...prev].slice(0, 50);
           });
 
+          mantineNotifications.show({
+            title: 'Nouvelle notification',
+            message: (
+              <Group align="center" spacing="sm">
+                <Avatar
+                  size={36}
+                  src={payload.author?.avatar || '/default-avatar.svg'}
+                  radius="xl"
+                  alt={payload.author?.username || 'Auteur'}
+                />
+                <div>
+                  <Text size="sm">{getNotificationText(payload)}</Text>
+                  <Text size="xs" c="dimmed">{getTimeAgo(new Date(payload.createdAt))}</Text>
+                </div>
+              </Group>
+            ),
+            autoClose: 7000,
+            color: 'pastelBlue',
+            onClick: () => {
+              router.push(`/posts/${payload.linkId}`);
+            },
+            style: { cursor: 'pointer' },
+          });
+
           queryClient.setQueryData(['notifications', 20, 0], (oldData: any) => {
             const existing = oldData?.notifications ?? [];
             const merged = [payload, ...existing].filter((val, idx, arr) => arr.findIndex((it) => it.id === val.id) === idx);
@@ -71,6 +96,37 @@ export default function NotificationMenu() {
           });
         },
         error: (err) => {
+          if (typeof CloseEvent !== 'undefined' && err instanceof CloseEvent) {
+            console.warn('Notification subscription websocket closed', {
+              type: err.type,
+              code: err.code,
+              reason: err.reason,
+              wasClean: err.wasClean,
+            });
+            return;
+          }
+
+          if (typeof ErrorEvent !== 'undefined' && err instanceof ErrorEvent) {
+            console.warn('Notification subscription websocket error event', {
+              type: err.type,
+              message: err.message,
+              filename: err.filename,
+              lineno: err.lineno,
+              colno: err.colno,
+            });
+            return;
+          }
+
+          if (err instanceof Event) {
+            console.warn('Notification subscription websocket event', err.type);
+            return;
+          }
+
+          if (err instanceof Error) {
+            console.error('Notification subscription error', err);
+            return;
+          }
+
           console.error('Notification subscription error', err);
         },
         complete: () => {
@@ -121,7 +177,7 @@ export default function NotificationMenu() {
               <Menu.Item key={n.id} onClick={() => handleClick(n)}>
                 <Group justify="space-between" style={{ width: '100%' }}>
                   <div>
-                    <Text size="sm">{n.type.replace(/_/g, ' ').toLowerCase()}</Text>
+                    <Text size="sm">{getNotificationText(n)}</Text>
                     <Text size="xs" c="dimmed">{getTimeAgo(new Date(n.createdAt))}</Text>
                   </div>
                   {!n.read ? <Badge color="orange">new</Badge> : null}

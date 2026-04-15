@@ -107,26 +107,24 @@ export default function PostCard({ post, preview }: PostCardProps) {
     <Card shadow="sm" padding="lg" radius="lg" withBorder style={{ borderColor: '#EAF7FF' }}>
       <Group justify="space-between" mb="sm">
         <Group>
-          <Link href={`/profile/${post.author.id}`} legacyBehavior>
-            <a style={{ display: 'inline-block' }}>
-              <Avatar src={getUploadUrl(post.author.avatar) || '/default-avatar.svg'} alt={post.author.username} radius="xl" color="pastelBlue">
-                {post.author.username.charAt(0).toUpperCase()}
-              </Avatar>
-            </a>
+          <Link href={`/profile/${post.author.id}`} style={{ display: 'inline-block' }}>
+            <Avatar src={getUploadUrl(post.author.avatar) || '/default-avatar.svg'} alt={post.author.username} radius="xl" color="pastelBlue">
+              {post.author.username.charAt(0).toUpperCase()}
+            </Avatar>
           </Link>
           <div>
             <Text fw={600} size="sm">
-              <Link href={`/profile/${post.author.id}`} legacyBehavior>
-                <a style={{ color: 'inherit', textDecoration: 'none' }}>{displayName}</a>
+              <Link href={`/profile/${post.author.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+                {displayName}
               </Link>
             </Text>
             <Text size="xs" c="dimmed">
-              <Link href={`/profile/${post.author.id}`} legacyBehavior>
-                <a style={{ color: 'inherit', textDecoration: 'none' }}>@{post.author.username}</a>
+              <Link href={`/profile/${post.author.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+                @{post.author.username}
               </Link>
               {' · '}
-              <Link href={`/posts/${post.id}`} legacyBehavior>
-                <a style={{ color: 'inherit', textDecoration: 'underline' }}>{timeAgo}</a>
+              <Link href={`/posts/${post.id}`} style={{ color: 'inherit', textDecoration: 'underline' }}>
+                {timeAgo}
               </Link>
             </Text>
           </div>
