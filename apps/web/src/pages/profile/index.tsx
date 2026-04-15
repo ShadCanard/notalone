@@ -2,9 +2,9 @@ import { Container, Card, Title, Text, TextInput, Textarea, Button, Stack, Avata
 import { getUploadUrl } from '@/lib/uploads';
 import { useForm } from '@mantine/form';
 import { IconUser } from '@tabler/icons-react';
-import Layout from '@/components/Layout';
+import Layout from '@/components/layout/Layout';
 import { useMe, useUpdateProfile, useUser } from '@/hooks/useApi';
-import PostCard from '@/components/PostCard';
+import PostCard from '@/components/posts/PostCard';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/router';
 import { useEffect } from 'react';
@@ -104,3 +104,4 @@ export default function ProfilePage() {
     </Layout>
   );
 }
+

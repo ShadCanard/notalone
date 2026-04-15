@@ -1,6 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { graphqlClient } from '@/lib/graphql-client';
-import type { User, Post as PostType, Attachment as AttachmentType, Comment as CommentType, Like, Message, AuthPayload } from '@/types';
+import type { User, Post as PostType, Attachment as AttachmentType, Comment as CommentType, Like, Message, Conversation, AuthPayload } from '@/types';
 import { gql } from 'graphql-request';
 
 // --- Auth Queries ---
@@ -65,6 +65,7 @@ const POSTS_QUERY = gql`
       content
       mood
       isPublic
+      payload
       createdAt
       attachments { id filename path mimeType size createdAt data }
       likesCount
@@ -92,12 +93,13 @@ const POSTS_QUERY = gql`
 `;
 
 const CREATE_POST_MUTATION = gql`
-  mutation CreatePost($content: String!, $mood: String, $isPublic: Boolean, $attachmentIds: [ID!]) {
-    createPost(content: $content, mood: $mood, isPublic: $isPublic, attachmentIds: $attachmentIds) {
+  mutation CreatePost($content: String!, $mood: String, $isPublic: Boolean, $attachmentIds: [ID!], $payload: JSON) {
+    createPost(content: $content, mood: $mood, isPublic: $isPublic, attachmentIds: $attachmentIds, payload: $payload) {
       id
       content
       mood
       isPublic
+      payload
       createdAt
       attachments { id filename path mimeType size createdAt data }
       likesCount
@@ -114,6 +116,49 @@ const CREATE_POST_MUTATION = gql`
   }
 `;
 
+const UPDATE_POST_MUTATION = gql`
+  mutation UpdatePost($id: ID!, $content: String!) {
+    updatePost(id: $id, content: $content) {
+      id
+      content
+      mood
+      isPublic
+      payload
+      createdAt
+      attachments { id filename path mimeType size createdAt data }
+      likesCount
+      commentsCount
+      isLikedByMe
+      author {
+        id
+        username
+        firstName
+        lastName
+        avatar
+      }
+      comments {
+        id
+        content
+        createdAt
+        author {
+          id
+          username
+          avatar
+        }
+      }
+      likes {
+        id
+        user {
+          id
+          username
+          avatar
+        }
+        createdAt
+      }
+    }
+  }
+`;
+
 const POST_QUERY = gql`
   query Post($id: ID!) {
     post(id: $id) {
@@ -121,6 +166,7 @@ const POST_QUERY = gql`
       content
       mood
       isPublic
+      payload
       createdAt
       attachments { id filename path mimeType size createdAt data }
       likesCount
@@ -135,6 +181,12 @@ const POST_QUERY = gql`
 const TOGGLE_LIKE_MUTATION = gql`
   mutation ToggleLike($postId: ID!) {
     toggleLike(postId: $postId)
+  }
+`;
+
+const DELETE_POST_MUTATION = gql`
+  mutation DeletePost($id: ID!) {
+    deletePost(id: $id)
   }
 `;
 
@@ -153,6 +205,27 @@ const CREATE_COMMENT_MUTATION = gql`
   }
 `;
 
+const UPDATE_COMMENT_MUTATION = gql`
+  mutation UpdateComment($id: ID!, $content: String!) {
+    updateComment(id: $id, content: $content) {
+      id
+      content
+      createdAt
+      author {
+        id
+        username
+        avatar
+      }
+    }
+  }
+`;
+
+const DELETE_COMMENT_MUTATION = gql`
+  mutation DeleteComment($id: ID!) {
+    deleteComment(id: $id)
+  }
+`;
+
 const MESSAGES_QUERY = gql`
   query Messages($userId: ID!) {
     messages(userId: $userId) {
@@ -162,6 +235,22 @@ const MESSAGES_QUERY = gql`
       createdAt
       sender { id username avatar }
       receiver { id username avatar }
+    }
+  }
+`;
+
+const CONVERSATIONS_QUERY = gql`
+  query Conversations($limit: Int, $offset: Int) {
+    conversations(limit: $limit, offset: $offset) {
+      id
+      lastMessage
+      lastMessageAt
+      unreadCount
+      partner {
+        id
+        username
+        avatar
+      }
     }
   }
 `;
@@ -197,6 +286,21 @@ const SEND_MESSAGE_MUTATION = gql`
       sender { id username avatar }
       receiver { id username avatar }
     }
+  }
+`;
+
+const MARK_MESSAGE_READ_MUTATION = gql`
+  mutation MarkMessageRead($id: ID!) {
+    markMessageRead(id: $id) {
+      id
+      read
+    }
+  }
+`;
+
+const SET_TYPING_STATUS_MUTATION = gql`
+  mutation SetTypingStatus($receiverId: ID!, $isTyping: Boolean!) {
+    setTypingStatus(receiverId: $receiverId, isTyping: $isTyping)
   }
 `;
 
@@ -302,10 +406,15 @@ export function useMe() {
 // Use shared `Post` type from `@/types`
 type Post = PostType;
 
-export function usePosts(limit = 20, offset = 0) {
-  return useQuery({
-    queryKey: ['posts', limit, offset],
-    queryFn: () => graphqlClient.request<{ posts: Post[] }>(POSTS_QUERY, { limit, offset }),
+export function usePosts(limit = 20) {
+  return useInfiniteQuery({
+    queryKey: ['posts', limit],
+    queryFn: ({ pageParam = 0 }) => graphqlClient.request<{ posts: Post[] }>(POSTS_QUERY, { limit, offset: pageParam }),
+    getNextPageParam: (lastPage, pages) => {
+      if (lastPage.posts.length < limit) return undefined;
+      return pages.length * limit;
+    },
+    keepPreviousData: true,
   });
 }
 
@@ -320,10 +429,23 @@ export function usePost(id?: string, enabled = true) {
 export function useCreatePost() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (variables: { content: string; mood?: string; isPublic?: boolean; attachmentIds?: string[] }) =>
+    mutationFn: (variables: { content: string; mood?: string; isPublic?: boolean; attachmentIds?: string[]; payload?: Record<string, unknown> }) =>
       graphqlClient.request<{ createPost: Post }>(CREATE_POST_MUTATION, variables),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['posts'] });
+    },
+  });
+}
+
+export function useUpdatePost() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (variables: { id: string; content: string }) =>
+      graphqlClient.request<{ updatePost: Post }>(UPDATE_POST_MUTATION, variables),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+      queryClient.invalidateQueries({ queryKey: ['post'] });
+      queryClient.invalidateQueries({ queryKey: ['myPosts'] });
     },
   });
 }
@@ -350,11 +472,51 @@ export function useCreateComment() {
   });
 }
 
+export function useUpdateComment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (variables: { id: string; content: string }) =>
+      graphqlClient.request<{ updateComment: CommentType }>(UPDATE_COMMENT_MUTATION, variables),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+    },
+  });
+}
+
+export function useDeleteComment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (variables: { id: string }) =>
+      graphqlClient.request<{ deleteComment: boolean }>(DELETE_COMMENT_MUTATION, variables),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+    },
+  });
+}
+
+export function useDeletePost() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (variables: { id: string }) =>
+      graphqlClient.request<{ deletePost: boolean }>(DELETE_POST_MUTATION, variables),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+    },
+  });
+}
+
 export function useMessages(userId?: string) {
   return useQuery({
     queryKey: ['messages', userId],
     enabled: !!userId,
     queryFn: () => graphqlClient.request<{ messages: Message[] }>(MESSAGES_QUERY, { userId }),
+  });
+}
+
+export function useConversations(limit = 50, offset = 0) {
+  return useQuery({
+    queryKey: ['conversations', limit, offset],
+    queryFn: () => graphqlClient.request<{ conversations: Conversation[] }>(CONVERSATIONS_QUERY, { limit, offset }),
   });
 }
 
@@ -382,6 +544,28 @@ export function useSendMessage() {
     mutationFn: (variables: { receiverId: string; content: string }) => graphqlClient.request<{ sendMessage: Message }>(SEND_MESSAGE_MUTATION, variables),
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['messages', vars.receiverId] });
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    },
+  });
+}
+
+export function useMarkMessageRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (variables: { id: string }) => graphqlClient.request<{ markMessageRead: { id: string; read: boolean } }>(MARK_MESSAGE_READ_MUTATION, variables),
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['messages'] });
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    },
+  });
+}
+
+export function useSetTypingStatus() {
+  return useMutation({
+    mutationFn: (variables: { receiverId: string; isTyping: boolean }) =>
+      graphqlClient.request<{ setTypingStatus: boolean }>(SET_TYPING_STATUS_MUTATION, variables),
+    onError: (error, variables) => {
+      console.error('[Chat] setTypingStatus failed', variables, error);
     },
   });
 }

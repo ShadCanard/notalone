@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import Layout from '@/components/Layout';
+import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
@@ -99,3 +99,4 @@ export default function AdminUsersPage() {
     </Layout>
   );
 }
+

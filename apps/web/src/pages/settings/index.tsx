@@ -1,7 +1,7 @@
 import { Container, Title, Tabs, Stack } from '@mantine/core';
 import Head from 'next/head';
-import Layout from '@/components/Layout';
-import EditProfile from '@/components/EditProfile';
+import Layout from '@/components/layout/Layout';
+import EditProfile from '@/components/layout/EditProfile';
 
 export default function SettingsPage() {
   return (
@@ -28,3 +28,4 @@ export default function SettingsPage() {
     </Layout>
   );
 }
+

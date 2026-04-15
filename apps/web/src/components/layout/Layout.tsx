@@ -2,8 +2,9 @@ import { AppShell, Group, Title, Button, Text, Burger, Stack } from '@mantine/co
 import { useDisclosure } from '@mantine/hooks';
 import { IconHeart, IconUser, IconHome } from '@tabler/icons-react';
 import { useAuth } from '@/contexts/AuthContext';
-import NotificationMenu from '@/components/NotificationMenu';
-import NavbarUserMenu from '@/components/NavbarUserMenu';
+import NotificationMenu from '@/components/layout/NotificationMenu';
+import NavbarUserMenu from '@/components/layout/NavbarUserMenu';
+import ChatWidget from '@/components/chats/ChatWidget';
 import { useRouter } from 'next/router';
 import type { ReactNode } from 'react';
 
@@ -98,7 +99,9 @@ export default function Layout({ children }: LayoutProps) {
           </Stack>
         </Group>
       </Group>
+      <ChatWidget />
       </AppShell.Main>
     </AppShell>
   );
 }
+

@@ -37,6 +37,7 @@ export interface Post {
   content: string;
   mood?: string | null;
   isPublic?: boolean;
+  payload?: Record<string, any> | null;
   createdAt: string;
   likesCount: number;
   commentsCount: number;
@@ -66,6 +67,20 @@ export interface Message {
   createdAt: string;
   sender: User;
   receiver: User;
+}
+
+export interface TypingStatus {
+  sender: User;
+  receiver: User;
+  isTyping: boolean;
+}
+
+export interface Conversation {
+  id: string;
+  partner: User;
+  lastMessage: string;
+  lastMessageAt: string;
+  unreadCount: number;
 }
 
 export interface Notification {

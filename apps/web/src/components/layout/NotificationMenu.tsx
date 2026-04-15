@@ -119,7 +119,7 @@ export default function NotificationMenu() {
           ) : (
             notifications.map((n) => (
               <Menu.Item key={n.id} onClick={() => handleClick(n)}>
-                <Group position="apart" style={{ width: '100%' }}>
+                <Group justify="space-between" style={{ width: '100%' }}>
                   <div>
                     <Text size="sm">{n.type.replace(/_/g, ' ').toLowerCase()}</Text>
                     <Text size="xs" c="dimmed">{getTimeAgo(new Date(n.createdAt))}</Text>

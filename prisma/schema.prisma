@@ -44,6 +44,8 @@ model Post {
   content   String
   mood      String?
   isPublic  Boolean  @default(true)
+  payload   Json?
+  deleted   Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -57,6 +59,7 @@ model Post {
 model Comment {
   id        String   @id @default(uuid())
   content   String
+  deleted   Boolean  @default(false)
   createdAt DateTime @default(now())
 
   authorId String

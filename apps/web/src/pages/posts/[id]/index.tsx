@@ -1,9 +1,9 @@
-import Layout from '@/components/Layout';
+import Layout from '@/components/layout/Layout';
 import { useRouter } from 'next/router';
 import { usePost } from '@/hooks/useApi';
 import { Center, Loader, Container, Card, Text } from '@mantine/core';
 import Head from 'next/head';
-import PostCard from '@/components/PostCard';
+import PostCard from '@/components/posts/PostCard';
 
 export default function PostDetailPage() {
   const router = useRouter();

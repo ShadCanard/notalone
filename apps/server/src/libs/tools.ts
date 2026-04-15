@@ -52,14 +52,16 @@ export function sanitizePostForPublic(post: Record<string, unknown> | null | und
   p['author'] = sanitizeUserForPublic(p['author'] as Record<string, unknown>, context) || { id: (p['author'] as Record<string, unknown>)['id'], username: 'deleted', createdAt: String((p['author'] as Record<string, unknown>)['createdAt'] ?? p['createdAt']) };
 
   if (p['comments']) {
-    p['comments'] = (p['comments'] as unknown as Array<Record<string, unknown>>).map((c) => {
-      const cc = c as Record<string, unknown>;
-      if (!cc['author']) {
-        cc['author'] = { id: cc['authorId'] ?? null, username: 'deleted', createdAt: cc['createdAt'] ?? p['createdAt'] };
-      }
-      const authorSanitized = sanitizeUserForPublic(cc['author'] as Record<string, unknown>, context);
-      return { ...cc, author: authorSanitized || { id: (cc['author'] as Record<string, unknown>)['id'], username: 'deleted', createdAt: String((cc['author'] as Record<string, unknown>)['createdAt'] ?? cc['createdAt'] ?? p['createdAt']) } };
-    });
+    p['comments'] = (p['comments'] as unknown as Array<Record<string, unknown>>)
+      .filter((c) => !(c as any).deleted)
+      .map((c) => {
+        const cc = c as Record<string, unknown>;
+        if (!cc['author']) {
+          cc['author'] = { id: cc['authorId'] ?? null, username: 'deleted', createdAt: cc['createdAt'] ?? p['createdAt'] };
+        }
+        const authorSanitized = sanitizeUserForPublic(cc['author'] as Record<string, unknown>, context);
+        return { ...cc, author: authorSanitized || { id: (cc['author'] as Record<string, unknown>)['id'], username: 'deleted', createdAt: String((cc['author'] as Record<string, unknown>)['createdAt'] ?? cc['createdAt'] ?? p['createdAt']) } };
+      });
   }
 
   if (p['likes']) {

@@ -1,5 +1,5 @@
-import { Menu, UnstyledButton, Group, Avatar, Text } from '@mantine/core';
-import { IconSettings, IconShieldCheck, IconLogout } from '@tabler/icons-react';
+import { Menu, UnstyledButton, Group, Avatar, Text, useMantineColorScheme } from '@mantine/core';
+import { IconSettings, IconShieldCheck, IconLogout, IconMoon, IconSun } from '@tabler/icons-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getUploadUrl } from '@/lib/uploads';
 import { useRouter } from 'next/router';
@@ -8,6 +8,7 @@ import type { FC } from 'react';
 const NavbarUserMenu: FC = () => {
   const { user, logout, isAuthenticated } = useAuth();
   const router = useRouter();
+  const { colorScheme, toggleColorScheme } = useMantineColorScheme();
 
   if (!isAuthenticated) return null;
 
@@ -50,6 +51,9 @@ const NavbarUserMenu: FC = () => {
           </>
         )}
         <Menu.Divider />
+        <Menu.Item leftSection={colorScheme === 'dark' ? <IconSun size={14} /> : <IconMoon size={14} />} onClick={() => toggleColorScheme()}>
+          Mode {colorScheme === 'dark' ? 'clair' : 'sombre'}
+        </Menu.Item>
         <Menu.Item color="red" leftSection={<IconLogout size={14} />} onClick={handleLogout}>
           Déconnexion
         </Menu.Item>

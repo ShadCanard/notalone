@@ -1,18 +1,22 @@
-import { Card, Group, Text, Avatar, ActionIcon, Stack, Badge, Textarea, Button } from '@mantine/core';
+import { Card, Group, Text, Avatar, ActionIcon, Stack, Badge, Menu, Textarea, Button } from '@mantine/core';
 import Link from 'next/link';
-import { IconHeart, IconHeartFilled, IconMessageCircle } from '@tabler/icons-react';
-import { useToggleLike, useCreateComment } from '@/hooks/useApi';
+import { IconHeart, IconHeartFilled, IconMessageCircle, IconDotsVertical, IconPencil, IconTrash } from '@tabler/icons-react';
+import { useToggleLike, useUpdatePost } from '@/hooks/useApi';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect } from 'react';
 import { notifications } from '@mantine/notifications';
 import { getUploadUrl } from '@/lib/uploads';
-import ViewImageModal from '@/components/ViewImageModal';
-import AudioPlayer from '@/components/AudioPlayer';
+import ViewImageModal from '@/components/posts/ViewImageModal';
+import AudioPlayer from '@/components/posts/AudioPlayer';
+import OGPreviewPostComponent from '@/components/posts/OGPreviewPostComponent';
+import DeletePostModal from '@/components/posts/DeletePostModal';
+import CommentComponent from '@/components/comments/CommentComponent';
 import { Post } from '@/types';
 import { getTimeAgo, parseDate } from '@/lib/tools';
 
 interface PostCardProps {
   post: Post;
+  preview?: boolean;
 }
 
 const moodEmojis: Record<string, string> = {
@@ -28,12 +32,20 @@ const moodEmojis: Record<string, string> = {
   struggling: '🌧️',
 };
 
-export default function PostCard({ post }: PostCardProps) {
+export default function PostCard({ post, preview }: PostCardProps) {
   const { isAuthenticated } = useAuth();
   const toggleLike = useToggleLike();
-  const createComment = useCreateComment();
+  const updatePost = useUpdatePost();
   const [showComments, setShowComments] = useState(() => (post.comments && post.comments.length > 0));
-  const [commentText, setCommentText] = useState('');
+  const [deleteModalOpened, setDeleteModalOpened] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedContent, setEditedContent] = useState(post.content);
+  const [content, setContent] = useState(post.content);
+
+  useEffect(() => {
+    setEditedContent(post.content);
+    setContent(post.content);
+  }, [post.content]);
 
   const handleLike = () => {
     if (!isAuthenticated) {
@@ -43,14 +55,30 @@ export default function PostCard({ post }: PostCardProps) {
     toggleLike.mutate({ postId: post.id });
   };
 
-  const handleComment = () => {
-    if (!commentText.trim()) return;
-    createComment.mutate(
-      { postId: post.id, content: commentText },
+  const handleDelete = () => {
+    setDeleteModalOpened(true);
+  };
+
+  const handleEdit = () => {
+    setIsEditing(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editedContent.trim()) {
+      notifications.show({ title: 'Contenu vide', message: 'Le post ne peut pas être vide.', color: 'red' });
+      return;
+    }
+
+    updatePost.mutate(
+      { id: post.id, content: editedContent },
       {
         onSuccess: () => {
-          setCommentText('');
-          notifications.show({ title: 'Commentaire ajouté', message: 'Merci pour ton soutien ! 🧡', color: 'green' });
+          setContent(editedContent);
+          setIsEditing(false);
+          notifications.show({ title: 'Post modifié', message: 'Le contenu du post a été mis à jour.', color: 'green' });
+        },
+        onError: (error: any) => {
+          notifications.show({ title: 'Erreur', message: error?.message || 'Impossible de modifier le post.', color: 'red' });
         },
       }
     );
@@ -68,6 +96,12 @@ export default function PostCard({ post }: PostCardProps) {
 
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+  const linkedPreviewUrl = typeof post.payload?.linkedUrl === 'string' && post.payload.linkedUrl.trim() ? String(post.payload.linkedUrl) : null;
+  const linkedPreviewImage = typeof post.payload?.linkedImage === 'string' && post.payload.linkedImage.trim() ? String(post.payload.linkedImage) : null;
+  const linkedPreviewTitle = typeof post.payload?.linkedTitle === 'string' && post.payload.linkedTitle.trim() ? String(post.payload.linkedTitle) : linkedPreviewUrl;
+  const linkedPreviewDescription = typeof post.payload?.linkedDescription === 'string' ? String(post.payload.linkedDescription) : null;
+  const linkedPreviewSiteName = typeof post.payload?.linkedSiteName === 'string' && post.payload.linkedSiteName.trim() ? String(post.payload.linkedSiteName) : null;
 
   return (
     <Card shadow="sm" padding="lg" radius="lg" withBorder style={{ borderColor: '#EAF7FF' }}>
@@ -102,11 +136,63 @@ export default function PostCard({ post }: PostCardProps) {
             {moodEmojis[post.mood] || '💭'} {post.mood}
           </Badge>
         )}
+        {!preview && isAuthenticated && (
+        <Menu withinPortal position="bottom-end" shadow="sm">
+          <Menu.Target>
+            <ActionIcon variant="subtle" color="gray">
+              <IconDotsVertical size={20} />
+            </ActionIcon>
+          </Menu.Target>
+          <Menu.Dropdown>
+            <Menu.Item onClick={handleEdit}>
+              <Group gap="xs" align="center">
+                <IconPencil size={16} />
+                Modifier
+              </Group>
+            </Menu.Item>
+            <Menu.Item onClick={handleDelete}>
+              <Group gap="xs" align="center">
+                <IconTrash size={16} />
+                Supprimer
+              </Group>
+            </Menu.Item>
+          </Menu.Dropdown>
+        </Menu>
+        )}
       </Group>
 
-      <Text size="md" mb="md" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
-        {post.content}
-      </Text>
+      {!preview && (
+      <DeletePostModal opened={deleteModalOpened} onClose={() => setDeleteModalOpened(false)} post={post} />
+      )}
+      {isEditing ? (
+        <div style={{ marginBottom: 16 }}>
+          <Textarea
+            value={editedContent}
+            onChange={(event) => setEditedContent(event.currentTarget.value)}
+            autosize
+            minRows={3}
+            maxRows={8}
+            mb="sm"
+          />
+          <Button size="sm" color="pastelBlue" onClick={handleSaveEdit} loading={updatePost.isPending}>
+            Modifier
+          </Button>
+        </div>
+      ) : (
+        <Text size="md" mb="md" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+          {content}
+        </Text>
+      )}
+
+      {linkedPreviewUrl ? (
+        <OGPreviewPostComponent
+          url={linkedPreviewUrl}
+          fallbackTitle={linkedPreviewTitle}
+          fallbackDescription={linkedPreviewDescription || undefined}
+          fallbackImage={linkedPreviewImage || undefined}
+          fallbackSiteName={linkedPreviewSiteName || undefined}
+        />
+      ) : null}
 
       {post.attachments && post.attachments.length > 0 && (
         <Stack gap="xs" mb="md">
@@ -148,6 +234,7 @@ export default function PostCard({ post }: PostCardProps) {
               color={post.isLikedByMe ? 'red' : 'gray'}
               onClick={handleLike}
               loading={toggleLike.isPending}
+              disabled={preview}
             >
               {post.isLikedByMe ? <IconHeartFilled size={20} /> : <IconHeart size={20} />}
             </ActionIcon>
@@ -156,7 +243,8 @@ export default function PostCard({ post }: PostCardProps) {
             </Text>
           </Group>
           <Group gap={4}>
-            <ActionIcon variant="subtle" color="gray" onClick={() => setShowComments(!showComments)}>
+            <ActionIcon variant="subtle" color="gray" 
+              disabled={preview} onClick={() => setShowComments(!showComments)}>
               <IconMessageCircle size={20} />
             </ActionIcon>
             <Text size="sm" c="dimmed">
@@ -166,55 +254,12 @@ export default function PostCard({ post }: PostCardProps) {
         </Group>
       </Group>
 
-          {showComments && (
-        <Stack gap="sm" mt="md" pt="md" style={{ borderTop: '1px solid #EAF7FF' }}>
-          {post.comments.map((comment) => (
-            <Group key={comment.id} gap="sm" align="flex-start">
-              <Link href={`/profile/${comment.author.id}`} legacyBehavior>
-                <a style={{ display: 'inline-block' }}>
-                  <Avatar src={getUploadUrl(comment.author.avatar) || '/default-avatar.svg'} size="sm" radius="xl" color="pastelBlue">
-                    {comment.author.username.charAt(0).toUpperCase()}
-                  </Avatar>
-                </a>
-              </Link>
-              <div style={{ flex: 1 }}>
-                <Group gap="xs">
-                  <Text size="sm" fw={600}>
-                    <Link href={`/profile/${comment.author.id}`} legacyBehavior>
-                      <a style={{ color: 'inherit', textDecoration: 'none' }}>@{comment.author.username}</a>
-                    </Link>
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    {getTimeAgo(parseDate(comment.createdAt))}
-                  </Text>
-                </Group>
-                <Text size="sm">{comment.content}</Text>
-              </div>
-            </Group>
-          ))}
-
-          {isAuthenticated && (
-            <Group align="flex-end">
-              <Textarea
-                placeholder="Écris un message de soutien..."
-                value={commentText}
-                onChange={(e) => setCommentText(e.currentTarget.value)}
-                style={{ flex: 1 }}
-                autosize
-                minRows={1}
-                maxRows={3}
-              />
-              <Button
-                color="pastelBlue"
-                onClick={handleComment}
-                loading={createComment.isPending}
-                disabled={!commentText.trim()}
-              >
-                Envoyer
-              </Button>
-            </Group>
-          )}
-        </Stack>
+      {showComments && (
+        <CommentComponent
+          comments={post.comments}
+          postId={post.id}
+          showCreate={!preview && isAuthenticated}
+        />
       )}
     </Card>
   );

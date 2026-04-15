@@ -1,14 +1,14 @@
 import { useRouter } from 'next/router';
-import Layout from '@/components/Layout';
+import Layout from '@/components/layout/Layout';
 import { } from 'react';
 import Head from 'next/head';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUser } from '@/hooks/useApi';
 import { Container, Title, Text, Card, Center, Loader, Avatar, Stack, Button } from '@mantine/core';
 import { getUploadUrl } from '@/lib/uploads';
-import PostCard from '@/components/PostCard';
+import PostCard from '@/components/posts/PostCard';
 
-export default function PublicProfilePage(props) {
+export default function PublicProfilePage() {
   const router = useRouter();
   const { id } = router.query;
   const { data, isLoading } = useUser(typeof id === 'string' ? id : undefined);
@@ -52,7 +52,28 @@ export default function PublicProfilePage(props) {
                 {user.firstName || user.lastName ? <Text c="dimmed">{`${user.firstName || ''} ${user.lastName || ''}`.trim()}</Text> : null}
                 {user.bio && <Text>{user.bio}</Text>}
                 <Text size="sm" c="dimmed">Membre depuis: {user.createdAt ? new Date(user.createdAt).toLocaleDateString('fr-FR') : '—'}</Text>
-                {isAuthenticated && <Button onClick={() => router.push('/messages')}>Envoyer un message</Button>}
+                {isAuthenticated && (
+                  <Button
+                    onClick={() => {
+                      if (typeof window === 'undefined') return;
+                      const avatar = getUploadUrl(user.avatar) || '';
+                      window.dispatchEvent(
+                        new CustomEvent('notalone:openConversation', {
+                          detail: {
+                            id: user.id,
+                            username: user.username,
+                            avatar,
+                            lastMessage: '',
+                            lastMessageAt: new Date().toISOString(),
+                            unreadCount: 0,
+                          },
+                        })
+                      );
+                    }}
+                  >
+                    Envoyer un message
+                  </Button>
+                )}
               </Stack>
             </Card>
 

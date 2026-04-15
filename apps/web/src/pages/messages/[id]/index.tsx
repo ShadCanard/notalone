@@ -1,5 +1,5 @@
 import { useRouter } from 'next/router';
-import Layout from '@/components/Layout';
+import Layout from '@/components/layout/Layout';
 import { useEffect, useState } from 'react';
 import Head from 'next/head';
 import { useAuth } from '@/contexts/AuthContext';

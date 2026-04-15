@@ -1,9 +1,10 @@
-import { Card, Textarea, Button, Group, Select, Switch, Stack, FileButton, Text, Image, CloseButton, ActionIcon, Badge } from '@mantine/core';
+import { Card, Textarea, Button, Group, Select, Switch, Stack, FileButton, Text, Image, CloseButton, ActionIcon, Badge, Skeleton, Box } from '@mantine/core';
 import { IconMicrophone } from '@tabler/icons-react';
 import { useForm } from '@mantine/form';
 import { useCreatePost, useUploadAttachments } from '@/hooks/useApi';
 import { notifications } from '@mantine/notifications';
 import { useEffect, useRef, useState } from 'react';
+import OGPreviewCreatePostComponent, { OgPreviewData } from '@/components/posts/OGPreviewCreatePostComponent';
 
 const moodOptions = [
   { value: 'happy', label: '😊 Content(e)' },
@@ -35,6 +36,9 @@ export default function CreatePostForm() {
   });
 
   const [previews, setPreviews] = useState<Array<{ url: string; name: string; type: string }>>([]);
+  const [linkPreview, setLinkPreview] = useState<OgPreviewData | null>(null);
+  const [detectedUrl, setDetectedUrl] = useState<string | null>(null);
+  const [hiddenPreviewUrl, setHiddenPreviewUrl] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = (useRef as any) ? useRef<MediaRecorder | null>(null) : null;
   const mediaStreamRef = (useRef as any) ? useRef<MediaStream | null>(null) : null;
@@ -54,6 +58,28 @@ export default function CreatePostForm() {
       next.forEach((p) => URL.revokeObjectURL(p.url));
     };
   }, [(form.values as any).files]);
+
+  const contentInputProps = form.getInputProps('content');
+
+  const detectUrl = (content: string) => {
+    const match = content.match(/https?:\/\/[^\s]+/i);
+    return match?.[0] ?? null;
+  };
+
+  const handleContentChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const content = event.currentTarget.value;
+    contentInputProps.onChange(event);
+    const url = detectUrl(content);
+    console.log('[CreatePostForm] detect url content', content);
+    console.log('[CreatePostForm] detected url', url);
+    if (!url) {
+      setDetectedUrl(null);
+      setLinkPreview(null);
+      return;
+    }
+    if (url === detectedUrl) return;
+    setDetectedUrl(url);
+  };
 
   // handle microphone recording
   const startRecording = async () => {
@@ -95,6 +121,7 @@ export default function CreatePostForm() {
   const handleSubmit = form.onSubmit(async (values) => {
     try {
       let attachmentIds: string[] | undefined = undefined;
+      let payload: Record<string, unknown> | undefined = undefined;
       if (values.files && values.files.length > 0) {
         try {
           const res = await uploadAttachments.mutateAsync(values.files as File[]);
@@ -104,6 +131,9 @@ export default function CreatePostForm() {
             notifications.show({ title: 'Upload partiel', message: 'Certaines pièces jointes n\'ont pas été acceptées.', color: 'yellow' });
           }
           attachmentIds = valid.map((a) => a.id);
+          if (valid.length > 0) {
+            payload = { attachments: valid };
+          }
         } catch (err: any) {
           const message = err?.message || 'Échec de l\'upload des fichiers';
           notifications.show({ title: 'Erreur upload', message, color: 'red' });
@@ -111,7 +141,24 @@ export default function CreatePostForm() {
         }
       }
 
-      await createPost.mutateAsync({ content: values.content, mood: values.mood || undefined, isPublic: values.isPublic, attachmentIds });
+      if (linkPreview?.url) {
+        payload = {
+          ...(payload ?? {}),
+          linkedUrl: linkPreview.url,
+          linkedTitle: linkPreview.title,
+          linkedDescription: linkPreview.description,
+          linkedImage: linkPreview.image,
+          linkedSiteName: linkPreview.siteName,
+        };
+      }
+
+      const isOnlyUrl = linkPreview?.url && values.content.trim() === linkPreview.url;
+      const contentToSend = isOnlyUrl ? '' : values.content;
+
+      await createPost.mutateAsync({ content: contentToSend, mood: values.mood || undefined, isPublic: values.isPublic, attachmentIds, payload });
+      setLinkPreview(null);
+      setDetectedUrl(null);
+      setHiddenPreviewUrl(null);
       form.reset();
       notifications.show({ title: 'Post publié !', message: 'Merci de partager avec la communauté 💙', color: 'green' });
     } catch (e: any) {
@@ -150,7 +197,18 @@ export default function CreatePostForm() {
             autosize
             minRows={3}
             maxRows={8}
-            {...form.getInputProps('content')}
+            {...contentInputProps}
+            onChange={handleContentChange}
+          />
+
+          <OGPreviewCreatePostComponent
+            url={detectedUrl}
+            hiddenUrl={hiddenPreviewUrl}
+            onPreviewChange={setLinkPreview}
+            onClose={() => {
+              setHiddenPreviewUrl(detectedUrl);
+              setLinkPreview(null);
+            }}
           />
 
           <Group justify="space-between" align="flex-end">

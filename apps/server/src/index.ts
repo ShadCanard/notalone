@@ -12,6 +12,10 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { spawn } from 'child_process';
+import { createServer } from 'http';
+import { execute, subscribe } from 'graphql';
+import { WebSocketServer } from 'ws';
+import { useServer } from 'graphql-ws/lib/use/ws';
 
 const app = express();
 
@@ -26,6 +30,10 @@ app.use(cookieParser());
 const yoga = createYoga<Context>({
   schema,
   graphiql: true,
+  cors: {
+    origin: 'http://localhost:3000',
+    credentials: true,
+  },
   context: async ({ request }) => {
     let authHeader: string | undefined | null = null;
     if (request?.headers?.get) {
@@ -51,14 +59,50 @@ const yoga = createYoga<Context>({
   },
 });
 
-app.use('/graphql', yoga as unknown as express.RequestHandler);
-
 // ensure uploads folder exists
 const uploadsRoot = path.join(process.cwd(), 'uploads');
 fs.mkdirSync(uploadsRoot, { recursive: true });
 
 // serve uploaded files
 app.use('/uploads', express.static(uploadsRoot));
+
+app.use('/graphql', yoga as unknown as express.RequestHandler);
+
+const server = createServer(app);
+
+const wsServer = new WebSocketServer({ server, path: '/graphql' });
+useServer(
+  {
+    schema,
+    execute,
+    subscribe,
+    context: async (ctx) => {
+      const connectionParams = ctx.connectionParams as Record<string, unknown> | undefined;
+      let authHeader: string | undefined | null = null;
+      if (connectionParams) {
+        authHeader = (connectionParams.authorization as string) || (connectionParams.Authorization as string) || null;
+      }
+
+      let user = null;
+      if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.slice(7);
+        const payload = verifyToken(token);
+        if (payload) {
+          const dbUser = await prisma.user.findUnique({ where: { id: payload.userId } });
+          user = { userId: payload.userId, email: payload.email, role: dbUser?.role };
+        }
+      }
+      return { user, pubsub };
+    },
+    onConnect: (ctx) => {
+      console.log('[WS] connection attempt', ctx.connectionParams);
+    },
+    onError: (ctx, msg, errors) => {
+      console.error('[WS] connection error', msg, errors);
+    },
+  },
+  wsServer
+);
 
 // helper to get authenticated DB user from Authorization header (or null)
 async function getAuthUserFromReq(req: express.Request) {
@@ -248,9 +292,91 @@ app.post('/upload/attachments', (req, res) => {
   });
 });
 
+function parseMetaTags(html: string, baseUrl: string) {
+  const result: Record<string, string> = {};
+  const metaRegex = /<meta\s+([^>]+)>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = metaRegex.exec(html)) !== null) {
+    const attrs = match[1];
+    const attrRegex = /(property|name|content)\s*=\s*(["'])(.*?)\2/gi;
+    let property: string | undefined;
+    let name: string | undefined;
+    let content: string | undefined;
+    let attrMatch: RegExpExecArray | null;
+    while ((attrMatch = attrRegex.exec(attrs)) !== null) {
+      const key = attrMatch[1].toLowerCase();
+      const value = attrMatch[3];
+      if (key === 'property') property = value.toLowerCase();
+      if (key === 'name') name = value.toLowerCase();
+      if (key === 'content') content = value;
+    }
+    if (content) {
+      if (property) {
+        result[property] = content;
+      } else if (name) {
+        result[name] = content;
+      }
+    }
+  }
+
+  if (!result['og:title']) {
+    const titleMatch = /<title>([\s\S]*?)<\/title>/i.exec(html);
+    if (titleMatch) result['og:title'] = titleMatch[1].trim();
+  }
+
+  if (!result['og:description'] && result['description']) {
+    result['og:description'] = result['description'];
+  }
+
+  if (result['og:image'] && !/^https?:\/\//i.test(result['og:image'])) {
+    try {
+      result['og:image'] = new URL(result['og:image'], baseUrl).href;
+    } catch (err) {
+      // ignore invalid relative image URL
+    }
+  }
+
+  return {
+    title: result['og:title'] || '',
+    description: result['og:description'] || '',
+    image: result['og:image'] || '',
+    siteName: result['og:site_name'] || '',
+  };
+}
+
+app.get('/api/og-preview', async (req, res) => {
+  const rawUrl = typeof req.query.url === 'string' ? req.query.url.trim() : '';
+  if (!rawUrl) return res.status(400).json({ error: 'Missing url' });
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(rawUrl);
+  } catch {
+    return res.status(400).json({ error: 'Invalid url' });
+  }
+
+  try {
+    const response = await fetch(parsedUrl.href, {
+      headers: {
+        'User-Agent': 'NotAlone/1.0 (+https://localhost)',
+        Accept: 'text/html',
+      },
+    });
+    if (!response.ok) {
+      return res.status(500).json({ error: 'Unable to fetch preview' });
+    }
+    const html = await response.text();
+    const metadata = parseMetaTags(html, parsedUrl.href);
+    return res.json({ url: parsedUrl.href, ...metadata });
+  } catch (err) {
+    console.error('OG preview error', err);
+    return res.status(500).json({ error: 'Preview fetch failed' });
+  }
+});
+
 const PORT = process.env.PORT || 4000;
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`🚀 Server ready at http://localhost:${PORT}/graphql`);
   console.log(`📊 GraphiQL available at http://localhost:${PORT}/graphql`);
 });

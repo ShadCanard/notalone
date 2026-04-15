@@ -1,6 +1,6 @@
 import { Container, Title, Text, Card, Stack, Center } from '@mantine/core';
 import { IconMessageCircle } from '@tabler/icons-react';
-import Layout from '@/components/Layout';
+import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/router';
 import { useEffect } from 'react';
@@ -48,3 +48,4 @@ export default function MessagesPage() {
     </Layout>
   );
 }
+
