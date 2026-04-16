@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useUser } from '@/hooks/useApi';
 import { Container, Title, Text, Card, Center, Loader, Avatar, Stack, Button } from '@mantine/core';
 import { getUploadUrl } from '@/lib/uploads';
-import PostCard from '@/components/posts/PostCard';
+import FeedComponent from '@/components/posts/FeedComponent';
 
 export default function PublicProfilePage() {
   const router = useRouter();
@@ -77,14 +77,13 @@ export default function PublicProfilePage() {
               </Stack>
             </Card>
 
-            {(user as any).posts && (user as any).posts.length > 0 && (
-              <Stack gap="md">
-                <Title order={3}>Posts</Title>
-                {(user as any).posts.map((p: any) => (
-                  <PostCard key={p.id} post={p} />
-                ))}
-              </Stack>
-            )}
+            <Stack gap="md">
+              <Title order={3}>Posts</Title>
+              <FeedComponent
+                posts={(user as any).posts ?? []}
+                emptyStateMessage="Cet utilisateur n'a pas encore partagé de post."
+              />
+            </Stack>
           </Stack>
         )}
       </Container>

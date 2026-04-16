@@ -1,7 +1,7 @@
 import { Avatar, Badge, Box, Card, Collapse, Divider, Group, Skeleton, Stack, Text, Textarea, ActionIcon } from '@mantine/core';
 import { IconX } from '@tabler/icons-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useMessages, useSendMessage, useSetTypingStatus, useMarkMessageRead } from '@/hooks/useApi';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useInfiniteMessages, useSendMessage, useSetTypingStatus, useMarkMessageRead } from '@/hooks/useApi';
 
 type ChatComponentProps = {
   conversationId: string;
@@ -25,7 +25,13 @@ export default function ChatComponent({
   isTyping = false,
 }: ChatComponentProps) {
   const [reply, setReply] = useState('');
-  const { data, isLoading } = useMessages(conversationId);
+  const {
+    data,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteMessages(conversationId, 50);
   const sendMessage = useSendMessage();
   const setTypingStatus = useSetTypingStatus();
   const markMessageRead = useMarkMessageRead();
@@ -34,6 +40,9 @@ export default function ChatComponent({
   const isTypingLocalRef = useRef(false);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const isScrolledToBottomRef = useRef(true);
+  const hasScrolledToBottomRef = useRef(false);
+  const previousCollapsedRef = useRef(collapsed);
+  const previousScrollHeightRef = useRef<number | null>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const alreadyMarkedReadRef = useRef<Set<string>>(new Set());
 
@@ -41,7 +50,14 @@ export default function ChatComponent({
     setTypingStatusRef.current = setTypingStatus;
   }, [setTypingStatus]);
 
-  const messages = data?.messages ?? [];
+  const messages = useMemo(
+    () =>
+      data?.pages
+        .slice()
+        .reverse()
+        .flatMap((page) => [...page.messages].reverse()) ?? [],
+    [data]
+  );
   const unreadCount = messages.filter((message) => message.receiver.id !== conversationId && !message.read).length;
 
   const lastMessageLabel = useMemo(
@@ -113,6 +129,10 @@ export default function ChatComponent({
     if (!el) return;
     const handleScroll = () => {
       isScrolledToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight <= 8;
+      if (el.scrollTop <= 16 && hasNextPage && !isFetchingNextPage) {
+        previousScrollHeightRef.current = el.scrollHeight;
+        void fetchNextPage();
+      }
       markVisibleUnreadMessagesRead();
     };
     el.addEventListener('scroll', handleScroll, { passive: true });
@@ -120,7 +140,7 @@ export default function ChatComponent({
     return () => {
       el.removeEventListener('scroll', handleScroll);
     };
-  }, [messages]);
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage, messages]);
 
   useEffect(() => {
     markVisibleUnreadMessagesRead();
@@ -128,11 +148,34 @@ export default function ChatComponent({
 
   useEffect(() => {
     const el = messagesContainerRef.current;
-    if (!el) return;
-    if (isScrolledToBottomRef.current) {
-      el.scrollTop = el.scrollHeight - el.clientHeight;
+    if (!el || previousScrollHeightRef.current === null) return;
+    const addedHeight = el.scrollHeight - previousScrollHeightRef.current;
+    if (addedHeight > 0) {
+      el.scrollTop = addedHeight;
     }
-  }, [messages.length, isTyping]);
+    previousScrollHeightRef.current = null;
+  }, [data?.pages?.length]);
+
+  const scrollToBottom = () => {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight - el.clientHeight;
+  };
+
+  useLayoutEffect(() => {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+
+    const openedConversation = previousCollapsedRef.current && !collapsed;
+    previousCollapsedRef.current = collapsed;
+
+    if (!hasScrolledToBottomRef.current || openedConversation || isScrolledToBottomRef.current) {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(scrollToBottom);
+      });
+      hasScrolledToBottomRef.current = true;
+    }
+  }, [messages.length, isTyping, collapsed]);
 
   const handleTyping = () => {
     if (!isTypingLocalRef.current) {

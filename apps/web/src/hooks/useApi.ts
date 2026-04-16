@@ -239,6 +239,19 @@ const MESSAGES_QUERY = gql`
   }
 `;
 
+const MESSAGES_PAGINATED_QUERY = gql`
+  query MessagesPaginated($userId: ID!, $limit: Int, $offset: Int) {
+    messagesPaginated(userId: $userId, limit: $limit, offset: $offset) {
+      id
+      content
+      read
+      createdAt
+      sender { id username avatar }
+      receiver { id username avatar }
+    }
+  }
+`;
+
 const CONVERSATIONS_QUERY = gql`
   query Conversations($limit: Int, $offset: Int) {
     conversations(limit: $limit, offset: $offset) {
@@ -406,9 +419,10 @@ export function useMe() {
 // Use shared `Post` type from `@/types`
 type Post = PostType;
 
-export function usePosts(limit = 20) {
-  return useInfiniteQuery({
+export function usePosts(limit = 20, enabled = true) {
+  return useInfiniteQuery<{ posts: Post[] }, Error, { posts: Post[] }, ['posts', number]>({
     queryKey: ['posts', limit],
+    enabled,
     queryFn: ({ pageParam = 0 }) => graphqlClient.request<{ posts: Post[] }>(POSTS_QUERY, { limit, offset: pageParam }),
     getNextPageParam: (lastPage, pages) => {
       if (lastPage.posts.length < limit) return undefined;
@@ -510,6 +524,23 @@ export function useMessages(userId?: string) {
     queryKey: ['messages', userId],
     enabled: !!userId,
     queryFn: () => graphqlClient.request<{ messages: Message[] }>(MESSAGES_QUERY, { userId }),
+  });
+}
+
+export function useInfiniteMessages(userId?: string, limit = 50) {
+  return useInfiniteQuery({
+    queryKey: ['messages', userId, 'infinite'],
+    enabled: !!userId,
+    queryFn: ({ pageParam = 0 }) =>
+      graphqlClient.request<{ messages: Message[] }>(MESSAGES_PAGINATED_QUERY, {
+        userId,
+        limit,
+        offset: pageParam,
+      }),
+    getNextPageParam: (lastPage, pages) => {
+      if (lastPage.messages.length < limit) return undefined;
+      return pages.length * limit;
+    },
   });
 }
 

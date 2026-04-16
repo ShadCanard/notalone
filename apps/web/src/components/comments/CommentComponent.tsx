@@ -1,6 +1,7 @@
 import { Group, Text, Avatar, Stack, Menu, ActionIcon, Textarea, Button, Box } from '@mantine/core';
 import Link from 'next/link';
-import { IconDotsVertical, IconPencil, IconTrash, IconX, IconCheck } from '@tabler/icons-react';
+import { useRouter } from 'next/router';
+import { IconDotsVertical, IconPencil, IconTrash, IconX, IconCheck, IconFlag } from '@tabler/icons-react';
 import { getUploadUrl } from '@/lib/uploads';
 import { getTimeAgo, parseDate } from '@/lib/tools';
 import CreateCommentComponent from '@/components/comments/CreateCommentComponent';
@@ -19,6 +20,7 @@ interface CommentComponentProps {
 }
 
 export default function CommentComponent({ comments, postId, showCreate = false, preview = false }: CommentComponentProps) {
+  const router = useRouter();
   const { user } = useAuth();
   const updateComment = useUpdateComment();
   const deleteComment = useDeleteComment();
@@ -55,6 +57,18 @@ export default function CommentComponent({ comments, postId, showCreate = false,
 
   const handleDelete = (commentId: string) => {
     setCommentToDelete(comments.find((comment) => comment.id === commentId) ?? null);
+  };
+
+  const handleReport = (commentId: string) => {
+    notifications.show({
+      title: 'Commentaire signalé',
+      message: 'Merci, nous allons examiner ce commentaire.',
+      color: 'red',
+    });
+  };
+
+  const handleModerate = (commentId: string) => {
+    router.push(`/admin/moderate/comment/${commentId}`);
   };
 
   const confirmDelete = (commentId: string) => {
@@ -98,31 +112,44 @@ export default function CommentComponent({ comments, postId, showCreate = false,
                     {getTimeAgo(parseDate(comment.createdAt))}
                   </Text>
                 </Group>
-                {canManage ? (
-                  <div style={{ marginLeft: 'auto', flexShrink: 0 }}>
-                    <Menu withinPortal position="bottom-end" shadow="sm">
-                      <Menu.Target>
-                        <ActionIcon variant="subtle" color="gray">
-                          <IconDotsVertical size={18} />
-                        </ActionIcon>
-                      </Menu.Target>
-                      <Menu.Dropdown>
-                        <Menu.Item onClick={() => startEdit(comment)}>
+                <div style={{ marginLeft: 'auto', flexShrink: 0 }}>
+                  <Menu withinPortal position="bottom-end" shadow="sm">
+                    <Menu.Target>
+                      <ActionIcon variant="subtle" color="gray">
+                        <IconDotsVertical size={18} />
+                      </ActionIcon>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                      <Menu.Item color="red" leftSection={<IconFlag size={16} />} onClick={() => handleReport(comment.id)}>
+                        Signaler
+                      </Menu.Item>
+                      {canManage && (
+                        <>
+                          <Menu.Item onClick={() => startEdit(comment)}>
+                            <Group gap="xs" align="center">
+                              <IconPencil size={16} />
+                              Modifier
+                            </Group>
+                          </Menu.Item>
+                          <Menu.Item onClick={() => handleDelete(comment.id)}>
+                            <Group gap="xs" align="center">
+                              <IconTrash size={16} />
+                              Supprimer
+                            </Group>
+                          </Menu.Item>
+                        </>
+                      )}
+                      {user?.role === 'ADMIN' && (
+                        <Menu.Item onClick={() => handleModerate(comment.id)}>
                           <Group gap="xs" align="center">
-                            <IconPencil size={16} />
-                            Modifier
+                            <IconFlag size={16} />
+                            Modérer ce message
                           </Group>
                         </Menu.Item>
-                        <Menu.Item onClick={() => handleDelete(comment.id)}>
-                          <Group gap="xs" align="center">
-                            <IconTrash size={16} />
-                            Supprimer
-                          </Group>
-                        </Menu.Item>
-                      </Menu.Dropdown>
-                    </Menu>
-                  </div>
-                ) : null}
+                      )}
+                    </Menu.Dropdown>
+                  </Menu>
+                </div>
               </div>
               {isEditing ? (
                 <div>

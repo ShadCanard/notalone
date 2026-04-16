@@ -1,6 +1,7 @@
 import { Card, Group, Text, Avatar, ActionIcon, Stack, Badge, Menu, Textarea, Button } from '@mantine/core';
 import Link from 'next/link';
-import { IconHeart, IconHeartFilled, IconMessageCircle, IconDotsVertical, IconPencil, IconTrash } from '@tabler/icons-react';
+import { useRouter } from 'next/router';
+import { IconHeart, IconHeartFilled, IconMessageCircle, IconDotsVertical, IconPencil, IconTrash, IconFlag } from '@tabler/icons-react';
 import { useToggleLike, useUpdatePost } from '@/hooks/useApi';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect } from 'react';
@@ -33,7 +34,10 @@ const moodEmojis: Record<string, string> = {
 };
 
 export default function PostCard({ post, preview }: PostCardProps) {
-  const { isAuthenticated } = useAuth();
+  const router = useRouter();
+  const { isAuthenticated, user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
+  const canModifyPost = isAuthenticated && user?.id === post.author.id;
   const toggleLike = useToggleLike();
   const updatePost = useUpdatePost();
   const [showComments, setShowComments] = useState(() => (post.comments && post.comments.length > 0));
@@ -59,8 +63,20 @@ export default function PostCard({ post, preview }: PostCardProps) {
     setDeleteModalOpened(true);
   };
 
+  const handleReport = () => {
+    notifications.show({
+      title: 'Post signalé',
+      message: 'Merci de votre vigilance, nous allons examiner ce contenu.',
+      color: 'red',
+    });
+  };
+
   const handleEdit = () => {
     setIsEditing(true);
+  };
+
+  const handleModerate = () => {
+    router.push(`/admin/moderate/post/${post.id}`);
   };
 
   const handleSaveEdit = () => {
@@ -134,7 +150,7 @@ export default function PostCard({ post, preview }: PostCardProps) {
             {moodEmojis[post.mood] || '💭'} {post.mood}
           </Badge>
         )}
-        {!preview && isAuthenticated && (
+        {!preview && (
         <Menu withinPortal position="bottom-end" shadow="sm">
           <Menu.Target>
             <ActionIcon variant="subtle" color="gray">
@@ -142,18 +158,33 @@ export default function PostCard({ post, preview }: PostCardProps) {
             </ActionIcon>
           </Menu.Target>
           <Menu.Dropdown>
-            <Menu.Item onClick={handleEdit}>
-              <Group gap="xs" align="center">
-                <IconPencil size={16} />
-                Modifier
-              </Group>
+            <Menu.Item color="red" onClick={handleReport} leftSection={<IconFlag size={16} />}>
+              Signaler
             </Menu.Item>
-            <Menu.Item onClick={handleDelete}>
-              <Group gap="xs" align="center">
-                <IconTrash size={16} />
-                Supprimer
-              </Group>
-            </Menu.Item>
+            {canModifyPost && (
+              <>
+                <Menu.Item onClick={handleEdit}>
+                  <Group gap="xs" align="center">
+                    <IconPencil size={16} />
+                    Modifier
+                  </Group>
+                </Menu.Item>
+                <Menu.Item onClick={handleDelete}>
+                  <Group gap="xs" align="center">
+                    <IconTrash size={16} />
+                    Supprimer
+                  </Group>
+                </Menu.Item>
+              </>
+            )}
+            {isAdmin && (
+              <Menu.Item onClick={handleModerate}>
+                <Group gap="xs" align="center">
+                  <IconFlag size={16} />
+                  Modérer ce message
+                </Group>
+              </Menu.Item>
+            )}
           </Menu.Dropdown>
         </Menu>
         )}

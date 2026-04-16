@@ -199,6 +199,29 @@ export const resolvers = {
         };
       });
     },
+    messagesPaginated: async (_parent: any, args: { userId: string; limit?: number; offset?: number }, context: Context) => {
+      if (!context.user) throw new Error('Non authentifié');
+      const msgs = await prisma.message.findMany({
+        where: {
+          OR: [
+            { senderId: context.user.userId, receiverId: args.userId },
+            { senderId: args.userId, receiverId: context.user.userId },
+          ],
+        },
+        orderBy: { createdAt: 'desc' },
+        take: args.limit ?? 50,
+        skip: args.offset ?? 0,
+        include: { sender: true, receiver: true },
+      });
+      return msgs.map((m) => {
+        const mm = convertDates({ ...m });
+        return {
+          ...mm,
+          sender: sanitizeUserForPublic(m.sender, context),
+          receiver: sanitizeUserForPublic(m.receiver, context),
+        };
+      });
+    },
 
     notifications: async (_parent: any, args: { limit?: number; offset?: number }, context: Context) => {
       if (!context.user) throw new Error('Non authentifié');

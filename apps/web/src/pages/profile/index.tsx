@@ -4,7 +4,7 @@ import { useForm } from '@mantine/form';
 import { IconUser } from '@tabler/icons-react';
 import Layout from '@/components/layout/Layout';
 import { useMe, useUpdateProfile, useUser } from '@/hooks/useApi';
-import PostCard from '@/components/posts/PostCard';
+import FeedComponent from '@/components/posts/FeedComponent';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/router';
 import { useEffect } from 'react';
@@ -92,14 +92,13 @@ export default function ProfilePage() {
           </Card>
         </Stack>
 
-        {userData?.user && (userData.user as any).posts && (userData.user as any).posts.length > 0 && (
-          <Stack gap="md" mt="xl">
-            <Title order={3}>Mes posts</Title>
-            {(userData.user as any).posts.map((p: any) => (
-              <PostCard key={p.id} post={p} />
-            ))}
-          </Stack>
-        )}
+        <Stack gap="md" mt="xl">
+          <Title order={3}>Mes posts</Title>
+          <FeedComponent
+            posts={(userData?.user as any)?.posts ?? []}
+            emptyStateMessage="Tu n'as pas encore partagé de post. Commence dès maintenant !"
+          />
+        </Stack>
       </Container>
     </Layout>
   );

@@ -109,6 +109,7 @@ export const typeDefs = /* GraphQL */ `
       myPosts: [Post!]!
       conversations(limit: Int, offset: Int): [Conversation!]!
       messages(userId: ID!): [Message!]!
+      messagesPaginated(userId: ID!, limit: Int, offset: Int): [Message!]!
       notifications(limit: Int, offset: Int): [Notification!]!
     }
 

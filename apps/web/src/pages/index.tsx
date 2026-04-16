@@ -1,31 +1,13 @@
-import { useEffect, useRef } from 'react';
-import { Container, Title, Text, Stack, Center, Loader, Alert, Card, Group, ThemeIcon } from '@mantine/core';
+import { useAuth } from '@/contexts/AuthContext';
+import { Container, Title, Text, Stack, Card, Group, ThemeIcon } from '@mantine/core';
 import { IconHeart, IconUsers, IconSun } from '@tabler/icons-react';
 import Layout from '@/components/layout/Layout';
-import PostCard from '@/components/posts/PostCard';
 import CreatePostForm from '@/components/posts/CreatePostForm';
-import { usePosts } from '@/hooks/useApi';
-import { useAuth } from '@/contexts/AuthContext';
+import FeedComponent from '@/components/posts/FeedComponent';
 import Head from 'next/head';
 
 export default function Home() {
   const { isAuthenticated } = useAuth();
-  const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } = usePosts();
-  const loaderRef = useRef<HTMLDivElement | null>(null);
-
-  const posts = data?.pages.flatMap((page) => page.posts) ?? [];
-
-  useEffect(() => {
-    if (!loaderRef.current || !hasNextPage) return;
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting && hasNextPage) {
-        fetchNextPage();
-      }
-    }, { rootMargin: '200px' });
-
-    observer.observe(loaderRef.current);
-    return () => observer.disconnect();
-  }, [fetchNextPage, hasNextPage]);
 
   return (
     <Layout>
@@ -76,39 +58,7 @@ export default function Home() {
 
           {/* Create Post Form */}
           {isAuthenticated && <CreatePostForm />}
-
-          {/* Posts Feed */}
-          {isLoading && (
-            <Center py="xl">
-              <Loader color="pastelBlue" size="lg" />
-            </Center>
-          )}
-
-          {error && (
-            <Alert color="red" title="Erreur">
-              Impossible de charger les posts. Vérifie que le serveur est bien lancé.
-            </Alert>
-          )}
-
-          {posts.length === 0 && !isLoading && !error && (
-            <Card padding="xl" radius="lg" withBorder style={{ borderColor: '#FFE8CC' }}>
-              <Text ta="center" c="dimmed" size="lg">
-                Pas encore de posts. Sois le premier à partager ! 🌟
-              </Text>
-            </Card>
-          )}
-
-          {posts.map((post) => (
-            <PostCard key={post.id} post={post} />
-          ))}
-
-          <div ref={loaderRef} />
-
-          {isFetchingNextPage && (
-            <Center py="xl">
-              <Loader color="pastelBlue" size="lg" />
-            </Center>
-          )}
+          <FeedComponent />
         </Stack>
       </Container>
     </Layout>
