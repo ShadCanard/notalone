@@ -1,7 +1,34 @@
+import { useEffect } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { graphqlClient } from '@/lib/graphql-client';
-import type { User, Post as PostType, Attachment as AttachmentType, Comment as CommentType, Like, Message, Conversation, AuthPayload } from '@/types';
+import { createClient } from 'graphql-ws';
+import { useRouter } from 'next/router';
+import { notifications as mantineNotifications } from '@mantine/notifications';
+import type {
+  User,
+  Post as PostType,
+  Attachment as AttachmentType,
+  Comment as CommentType,
+  Message,
+  Conversation,
+  AuthPayload,
+  Notification,
+  TypingStatus,
+  NotificationsQueryData,
+  ConversationsQueryData,
+  MessageSubscriptionPayload,
+  TypingStatusSubscriptionPayload,
+  CommentCreatedSubscriptionPayload,
+  PostCreatedSubscriptionPayload,
+  PaginatedMessagesData,
+  InfiniteMessagesData,
+  PostQueryData,
+  PostPagesData,
+} from '@/types';
+import { getNotificationText } from '@/lib/tools';
 import { gql } from 'graphql-request';
+
+type Comment = CommentType;
 
 // --- Auth Queries ---
 
@@ -281,6 +308,73 @@ const NOTIFICATIONS_QUERY = gql`
   }
 `;
 
+const NOTIFICATIONS_SUBSCRIPTION = gql`
+  subscription NotificationReceived($userId: ID!) {
+    notificationReceived(userId: $userId) {
+      id
+      type
+      linkId
+      read
+      createdAt
+      author { id username avatar }
+      user { id username avatar }
+    }
+  }
+`;
+
+const MESSAGE_RECEIVED_SUBSCRIPTION = gql`
+  subscription MessageReceived($userId: ID!) {
+    messageReceived(userId: $userId) {
+      id
+      content
+      read
+      createdAt
+      sender { id username avatar }
+      receiver { id username avatar }
+    }
+  }
+`;
+
+const TYPING_STATUS_SUBSCRIPTION = gql`
+  subscription TypingStatus($userId: ID!) {
+    typingStatus(userId: $userId) {
+      sender { id username avatar }
+      receiver { id username avatar }
+      isTyping
+    }
+  }
+`;
+
+const COMMENT_CREATED_SUBSCRIPTION = gql`
+  subscription CommentCreated($postId: ID, $userId: ID) {
+    commentCreated(postId: $postId, userId: $userId) {
+      id
+      content
+      createdAt
+      author { id username avatar }
+      post { id }
+    }
+  }
+`;
+
+const POST_CREATED_SUBSCRIPTION = gql`
+  subscription PostCreated($userId: ID) {
+    postCreated(userId: $userId) {
+      id
+      content
+      mood
+      isPublic
+      createdAt
+      payload
+      author { id username avatar }
+      attachments { id filename path mimeType size createdAt data }
+      likesCount
+      commentsCount
+      isLikedByMe
+    }
+  }
+`;
+
 const MARK_NOTIFICATION_READ_MUTATION = gql`
   mutation MarkNotificationRead($id: ID!) {
     markNotificationRead(id: $id) {
@@ -428,7 +522,7 @@ export function usePosts(limit = 20, enabled = true) {
       if (lastPage.posts.length < limit) return undefined;
       return pages.length * limit;
     },
-    keepPreviousData: true,
+    initialPageParam: 0,
   });
 }
 
@@ -528,19 +622,23 @@ export function useMessages(userId?: string) {
 }
 
 export function useInfiniteMessages(userId?: string, limit = 50) {
-  return useInfiniteQuery({
+  return useInfiniteQuery<InfiniteMessagesPage, Error, PaginatedMessagesData, ['messages', string | undefined, 'infinite']>({
     queryKey: ['messages', userId, 'infinite'],
     enabled: !!userId,
-    queryFn: ({ pageParam = 0 }) =>
-      graphqlClient.request<{ messages: Message[] }>(MESSAGES_PAGINATED_QUERY, {
+    queryFn: async ({ pageParam = 0 }) => {
+      const result = await graphqlClient.request<PaginatedMessagesData>(MESSAGES_PAGINATED_QUERY, {
         userId,
         limit,
         offset: pageParam,
-      }),
+      });
+      return { messages: result.messagesPaginated };
+    },
     getNextPageParam: (lastPage, pages) => {
-      if (lastPage.messages.length < limit) return undefined;
+      const pageMessages = lastPage?.messages ?? [];
+      if (pageMessages.length < limit) return undefined;
       return pages.length * limit;
     },
+    initialPageParam: 0,
   });
 }
 
@@ -551,18 +649,357 @@ export function useConversations(limit = 50, offset = 0) {
   });
 }
 
+function getWebSocketUrl() {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/graphql';
+  return apiUrl.replace(/^http/, 'ws');
+}
+
 export function useNotifications(limit = 20, offset = 0) {
-  return useQuery({
+  return useQuery<NotificationsQueryData>({
     queryKey: ['notifications', limit, offset],
-    queryFn: () => graphqlClient.request<{ notifications: Array<any> }>(NOTIFICATIONS_QUERY, { limit, offset }),
+    queryFn: () => graphqlClient.request<NotificationsQueryData>(NOTIFICATIONS_QUERY, { limit, offset }),
   });
+}
+
+export function useNotificationSubscription(userId?: string, token?: string | null) {
+  const queryClient = useQueryClient();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!userId || !token) return;
+
+    const client = createClient({
+      url: getWebSocketUrl(),
+      connectionParams: {
+        authorization: `Bearer ${token}`,
+      },
+    });
+
+    const dispose = client.subscribe(
+      {
+        query: NOTIFICATIONS_SUBSCRIPTION,
+        variables: { userId },
+      },
+      {
+        next: (result: { data?: MessageSubscriptionPayload | NotificationSubscriptionPayload | TypingStatusSubscriptionPayload }) => {
+          const payload = result.data?.notificationReceived;
+          if (!payload) return;
+
+          queryClient.setQueryData<NotificationsQueryData>(['notifications', 20, 0], (oldData) => {
+            const existing = oldData?.notifications ?? [];
+            const merged = [payload, ...existing].filter(
+              (item: Notification, index: number, arr: Notification[]) => arr.findIndex((value) => value.id === item.id) === index
+            );
+            return { notifications: merged.slice(0, 50) };
+          });
+
+          mantineNotifications.show({
+            title: 'Nouvelle notification',
+            message: getNotificationText(payload),
+            autoClose: 7000,
+            color: 'pastelBlue',
+            style: { cursor: 'pointer' },
+            onClick: () => router.push(`/posts/${payload.linkId}`),
+          });
+        },
+        error: (err) => {
+          console.warn('Notification subscription error', err);
+        },
+        complete: () => {
+          console.info('Notification subscription completed');
+        },
+      }
+    );
+
+    return () => {
+      dispose();
+      client.dispose();
+    };
+  }, [queryClient, router, token, userId]);
+}
+
+export function useChatSubscriptions(userId?: string, token?: string | null, onTypingStatus?: (typingStatus: TypingStatus) => void, onMessageReceived?: (message: Message) => void) {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!userId || !token) return;
+
+    const client = createClient({
+      url: getWebSocketUrl(),
+      connectionParams: {
+        authorization: `Bearer ${token}`,
+      },
+    });
+
+    const disposeMessage = client.subscribe(
+      {
+        query: MESSAGE_RECEIVED_SUBSCRIPTION,
+        variables: { userId },
+      },
+      {
+        next: (result: { data?: MessageSubscriptionPayload }) => {
+          const payload = result.data?.messageReceived;
+          if (!payload) return;
+
+          const sender = payload.sender;
+
+          queryClient.setQueryData<ConversationsQueryData>(['conversations', 50, 0], (oldData) => {
+            const existing = oldData?.conversations ?? [];
+            const updated = existing.map((conversation) => {
+              if (conversation.id !== sender.id) return conversation;
+              return {
+                ...conversation,
+                lastMessage: payload.content,
+                lastMessageAt: payload.createdAt,
+                unreadCount:
+                  sender.id === userId
+                    ? 0
+                    : (conversation.unreadCount ?? 0) + 1,
+              };
+            });
+
+            if (existing.some((conversation) => conversation.id === sender.id)) {
+              return { conversations: updated };
+            }
+
+            const newConversation = {
+              id: sender.id,
+              partner: sender,
+              lastMessage: payload.content,
+              lastMessageAt: payload.createdAt,
+              unreadCount: sender.id === userId ? 0 : 1,
+            };
+            return { conversations: [newConversation, ...existing].slice(0, 50) };
+          });
+
+          queryClient.setQueryData<{ messages: Message[] }>(['messages', sender.id], (oldData) => {
+            const existing = oldData?.messages ?? [];
+            if (existing.some((message) => message.id === payload.id)) return oldData;
+            return { messages: [...existing, payload] };
+          });
+
+          queryClient.setQueryData<InfiniteMessagesData>(['messages', sender.id, 'infinite'], (oldData) => {
+            const pages = oldData?.pages ?? [];
+            const firstPage = pages[0];
+            const existingMessages = firstPage?.messages ?? [];
+            if (existingMessages.some((message) => message.id === payload.id)) return oldData;
+            const updatedFirstPage = {
+              messages: [payload, ...existingMessages],
+            };
+            if (pages.length === 0) {
+              return {
+                pages: [updatedFirstPage],
+              };
+            }
+            return {
+              ...oldData,
+              pages: [updatedFirstPage, ...pages.slice(1)],
+            };
+          });
+
+          if (onMessageReceived) {
+            onMessageReceived(payload);
+          }
+        },
+        error: (err) => {
+          console.error('Message subscription error', err);
+        },
+        complete: () => {
+          console.info('Message subscription completed');
+        },
+      }
+    );
+
+    const disposeTyping = client.subscribe(
+      {
+        query: TYPING_STATUS_SUBSCRIPTION,
+        variables: { userId },
+      },
+      {
+        next: (result: { data?: TypingStatusSubscriptionPayload }) => {
+          const payload = result.data?.typingStatus;
+          if (!payload) return;
+          if (onTypingStatus) {
+            onTypingStatus(payload);
+          }
+        },
+        error: (err) => {
+          console.error('Typing subscription error', err);
+        },
+        complete: () => {
+          console.info('Typing subscription completed');
+        },
+      }
+    );
+
+    return () => {
+      disposeMessage();
+      disposeTyping();
+      client.dispose();
+    };
+  }, [queryClient, token, userId, onTypingStatus, onMessageReceived]);
+}
+
+function addCommentToPostCache(queryClient: ReturnType<typeof useQueryClient>, postId: string, comment: Comment) {
+  queryClient.setQueryData<PostQueryData>(['post', postId], (oldData) => {
+    const post = oldData?.post;
+    if (!post) return oldData;
+    if (post.comments?.some((existing: Comment) => existing.id === comment.id)) return oldData;
+    return {
+      post: {
+        ...post,
+        comments: [...(post.comments ?? []), comment],
+        commentsCount: (post.commentsCount ?? 0) + 1,
+      },
+    };
+  });
+
+  queryClient.setQueryData<PostPagesData>(['posts', 20], (oldData) => {
+    if (!oldData?.pages) return oldData;
+    return {
+      ...oldData,
+      pages: oldData.pages.map((page) => ({
+        posts: page.posts.map((post) => {
+          if (post.id !== postId) return post;
+          if (post.comments?.some((existing: Comment) => existing.id === comment.id)) return post;
+          return {
+            ...post,
+            comments: [...(post.comments ?? []), comment],
+            commentsCount: (post.commentsCount ?? 0) + 1,
+          };
+        }),
+      })),
+    };
+  });
+}
+
+function addPostToCache(queryClient: ReturnType<typeof useQueryClient>, post: Post) {
+  queryClient.setQueryData<PostPagesData>(['posts', 20], (oldData) => {
+    if (!oldData?.pages) return oldData;
+    const firstPage = oldData.pages[0];
+    const alreadyExists = firstPage?.posts?.some((existing: Post) => existing.id === post.id);
+    if (alreadyExists) return oldData;
+    return {
+      ...oldData,
+      pages: [
+        {
+          posts: [post, ...(firstPage?.posts ?? [])],
+        },
+        ...oldData.pages.slice(1),
+      ],
+    };
+  });
+
+  if (post.author?.id) {
+    queryClient.setQueryData<{ user: User }>(['user', post.author.id], (oldData) => {
+      const user = oldData?.user;
+      if (!user) return oldData;
+      const existingPosts = user.posts ?? [];
+      if (existingPosts.some((existing: Post) => existing.id === post.id)) return oldData;
+      return {
+        user: {
+          ...user,
+          posts: [post, ...existingPosts],
+        },
+      };
+    });
+  }
+}
+
+export function useCommentSubscriptions(token?: string | null, userId?: string, postId?: string) {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!token) return;
+
+    const client = createClient({
+      url: getWebSocketUrl(),
+      connectionParams: {
+        authorization: `Bearer ${token}`,
+      },
+    });
+
+    const variables: Record<string, string> = {};
+    if (postId) variables.postId = postId;
+    if (userId) variables.userId = userId;
+
+    const dispose = client.subscribe(
+      {
+        query: COMMENT_CREATED_SUBSCRIPTION,
+        variables: Object.keys(variables).length ? variables : undefined,
+      },
+      {
+        next: (result: { data?: CommentCreatedSubscriptionPayload }) => {
+          const payload = result.data?.commentCreated;
+          if (!payload) return;
+          const postId = payload.post?.id;
+          if (!postId) return;
+          addCommentToPostCache(queryClient, postId, payload);
+        },
+        error: (err) => {
+          console.error('Comment subscription error', err);
+        },
+        complete: () => {
+          console.info('Comment subscription completed');
+        },
+      }
+    );
+
+    return () => {
+      dispose();
+      client.dispose();
+    };
+  }, [queryClient, token, userId, postId]);
+}
+
+export function usePostSubscriptions(token?: string | null, userId?: string) {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!token) return;
+
+    const client = createClient({
+      url: getWebSocketUrl(),
+      connectionParams: {
+        authorization: `Bearer ${token}`,
+      },
+    });
+
+    const variables: Record<string, string> = {};
+    if (userId) variables.userId = userId;
+
+    const dispose = client.subscribe(
+      {
+        query: POST_CREATED_SUBSCRIPTION,
+        variables: Object.keys(variables).length ? variables : undefined,
+      },
+      {
+        next: (result: { data?: PostCreatedSubscriptionPayload }) => {
+          const payload = result.data?.postCreated;
+          if (!payload) return;
+          addPostToCache(queryClient, payload);
+        },
+        error: (err) => {
+          console.error('Post subscription error', err);
+        },
+        complete: () => {
+          console.info('Post subscription completed');
+        },
+      }
+    );
+
+    return () => {
+      dispose();
+      client.dispose();
+    };
+  }, [queryClient, token, userId]);
 }
 
 export function useMarkNotificationRead() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (variables: { id: string }) => graphqlClient.request<{ markNotificationRead: { id: string; read: boolean } }>(MARK_NOTIFICATION_READ_MUTATION, variables),
-    onSuccess: (_data, vars) => {
+    onSuccess: (_data, _vars) => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
       queryClient.invalidateQueries({ queryKey: ['me'] });
     },
@@ -573,8 +1010,8 @@ export function useSendMessage() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (variables: { receiverId: string; content: string }) => graphqlClient.request<{ sendMessage: Message }>(SEND_MESSAGE_MUTATION, variables),
-    onSuccess: (_data, vars) => {
-      queryClient.invalidateQueries({ queryKey: ['messages', vars.receiverId] });
+    onSuccess: (_data, _vars) => {
+      queryClient.invalidateQueries({ queryKey: ['messages', _vars.receiverId] });
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
     },
   });
@@ -584,7 +1021,7 @@ export function useMarkMessageRead() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (variables: { id: string }) => graphqlClient.request<{ markMessageRead: { id: string; read: boolean } }>(MARK_MESSAGE_READ_MUTATION, variables),
-    onSuccess: (_data, vars) => {
+    onSuccess: (_data, _vars) => {
       queryClient.invalidateQueries({ queryKey: ['messages'] });
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
     },
@@ -613,7 +1050,6 @@ export function useUpdateProfile() {
 }
 
 export function useUploadAvatar() {
-  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (file: File) => {
       const fd = new FormData();

@@ -48,8 +48,9 @@ export default function CommentComponent({ comments, postId, showCreate = false,
           setEditingContent('');
           notifications.show({ title: 'Commentaire modifié', message: 'Ton commentaire a été mis à jour.', color: 'green' });
         },
-        onError: (error: any) => {
-          notifications.show({ title: 'Erreur', message: error?.message || 'Impossible de modifier le commentaire.', color: 'red' });
+        onError: (error: unknown) => {
+          const message = error instanceof Error ? error.message : 'Impossible de modifier le commentaire.';
+          notifications.show({ title: 'Erreur', message, color: 'red' });
         },
       }
     );
@@ -59,7 +60,7 @@ export default function CommentComponent({ comments, postId, showCreate = false,
     setCommentToDelete(comments.find((comment) => comment.id === commentId) ?? null);
   };
 
-  const handleReport = (commentId: string) => {
+  const handleReport = (_commentId: string) => {
     notifications.show({
       title: 'Commentaire signalé',
       message: 'Merci, nous allons examiner ce commentaire.',
@@ -79,8 +80,9 @@ export default function CommentComponent({ comments, postId, showCreate = false,
           setCommentToDelete(null);
           notifications.show({ title: 'Commentaire supprimé', message: 'Le commentaire a bien été supprimé.', color: 'green' });
         },
-        onError: (error: any) => {
-          notifications.show({ title: 'Erreur', message: error?.message || 'Impossible de supprimer le commentaire.', color: 'red' });
+        onError: (error: unknown) => {
+          const message = error instanceof Error ? error.message : 'Impossible de supprimer le commentaire.';
+          notifications.show({ title: 'Erreur', message, color: 'red' });
         },
       }
     );
@@ -173,7 +175,7 @@ export default function CommentComponent({ comments, postId, showCreate = false,
                   </Group>
                 </div>
               ) : (
-                <Text size="sm">{comment.content}</Text>
+                <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{comment.content}</Text>
               )}
             </Box>
           </Group>

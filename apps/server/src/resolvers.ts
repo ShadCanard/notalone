@@ -20,12 +20,13 @@ export const resolvers = {
           case Kind.INT:
           case Kind.FLOAT:
             return Number(node.value);
-          case Kind.OBJECT:
+          case Kind.OBJECT: {
             const obj: any = {};
             for (const field of node.fields) {
               obj[field.name.value] = parse(field.value);
             }
             return obj;
+          }
           case Kind.LIST:
             return node.values.map(parse);
           case Kind.NULL:
@@ -59,7 +60,7 @@ export const resolvers = {
       if (!u) return null;
       // If the requester is admin or the owner, return full user info (without password)
       if (context.user && (hasRole(context, 'MODERATOR') || hasRole(context, 'ADMIN') || context.user.userId === u.id)) {
-        const { password, ...rest } = u as any;
+        const { password: _password, ...rest } = u as any;
         return convertDates(rest);
       }
       // Otherwise return the public projection
@@ -130,7 +131,7 @@ export const resolvers = {
 
     conversations: async (_parent: any, args: { limit?: number; offset?: number }, context: Context) => {
       requireAuth(context);
-      const userId = context.user?.userId!;
+      const userId = context.user.userId;
       const messages = await prisma.message.findMany({
         where: {
           OR: [
@@ -267,7 +268,7 @@ export const resolvers = {
       return { token, user: convertDates(user) };
     },
 
-    login: async (_parent: any, args: { identifier: string; password: string }, context: Context) => {
+    login: async (_parent: any, args: { identifier: string; password: string }, _context: Context) => {
       const user = await prisma.user.findFirst({
         where: {
           OR: [{ email: args.identifier }, { username: args.identifier }],
@@ -309,7 +310,10 @@ export const resolvers = {
           attachments: true,
         },
       });
-      return sanitizePostForPublic(created, context);
+      const sanitized = sanitizePostForPublic(created, context);
+      await context.pubsub.publish('post', sanitized);
+      await context.pubsub.publish(`post:user:${context.user.userId}`, sanitized);
+      return sanitized;
     },
 
     deletePost: async (_parent: any, args: { id: string }, context: Context) => {
@@ -402,10 +406,21 @@ export const resolvers = {
           });
           await context.pubsub.publish(`notification:${postAuthorId}`, convertDates(notification));
         }
-      } catch (e) {
+      } catch {
         // ignore notification creation errors
       }
       const c = convertDates(created);
+      const commentPayload = { ...c, author: sanitizeUserForPublic(created.author, context), post: { id: args.postId } } as any;
+      try {
+        await context.pubsub.publish('comment', commentPayload);
+        await context.pubsub.publish(`comment:post:${args.postId}`, commentPayload);
+        const postAuthorId = (created.post as any).authorId as string | undefined;
+        if (postAuthorId) {
+          await context.pubsub.publish(`comment:user:${postAuthorId}`, commentPayload);
+        }
+      } catch (err) {
+        console.error('[Subscription] Failed to publish comment event', err);
+      }
       return { ...c, author: sanitizeUserForPublic(created.author, context) };
     },
 
@@ -439,7 +454,7 @@ export const resolvers = {
           });
           await context.pubsub.publish(`notification:${post.authorId}`, convertDates(notification));
         }
-      } catch (e) {
+      } catch {
         // ignore
       }
       return true;
@@ -569,6 +584,39 @@ export const resolvers = {
         if (context.user.userId !== args.userId) throw new Error('Non autorisé');
         console.log(`[Subscription] typingStatus subscribed for user ${args.userId}`);
         return context.pubsub.subscribe(`typing:${args.userId}`);
+      },
+      resolve: (payload: any) => payload,
+    },
+    commentCreated: {
+      subscribe: async (_parent: any, args: { postId?: string; userId?: string }, context: Context) => {
+        if (!context.user) throw new Error('Non authentifié');
+        if (args.postId) {
+          const post = await prisma.post.findUnique({ where: { id: args.postId }, select: { id: true, isPublic: true, authorId: true } });
+          if (!post) throw new Error('Post introuvable');
+          if (!post.isPublic && post.authorId !== context.user.userId && !hasRole(context, 'ADMIN') && !hasRole(context, 'MODERATOR')) {
+            throw new Error('Non autorisé à voir ce post');
+          }
+          console.log(`[Subscription] commentCreated subscribed for post ${args.postId}`);
+          return context.pubsub.subscribe(`comment:post:${args.postId}`);
+        }
+        if (args.userId) {
+          console.log(`[Subscription] commentCreated subscribed for user ${args.userId}`);
+          return context.pubsub.subscribe(`comment:user:${args.userId}`);
+        }
+        console.log('[Subscription] commentCreated subscribed globally');
+        return context.pubsub.subscribe('comment');
+      },
+      resolve: (payload: any) => payload,
+    },
+    postCreated: {
+      subscribe: async (_parent: any, args: { userId?: string }, context: Context) => {
+        if (!context.user) throw new Error('Non authentifié');
+        if (args.userId) {
+          console.log(`[Subscription] postCreated subscribed for user ${args.userId}`);
+          return context.pubsub.subscribe(`post:user:${args.userId}`);
+        }
+        console.log('[Subscription] postCreated subscribed globally');
+        return context.pubsub.subscribe('post');
       },
       resolve: (payload: any) => payload,
     },

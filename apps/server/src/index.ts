@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
-import { useServer } from 'graphql-ws/lib/use/ws';
+import { useServer as startGraphqlWsServer } from 'graphql-ws/lib/use/ws';
 import { execute, subscribe } from 'graphql';
 import { createYoga } from 'graphql-yoga';
 import { createPubSub } from '@graphql-yoga/subscription';
@@ -16,10 +16,6 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { spawn } from 'child_process';
-import { createServer } from 'http';
-import { execute, subscribe } from 'graphql';
-import { WebSocketServer } from 'ws';
-import { useServer } from 'graphql-ws/lib/use/ws';
 
 const app = express();
 
@@ -75,7 +71,7 @@ app.use('/graphql', yoga as unknown as express.RequestHandler);
 const server = createServer(app);
 
 const wsServer = new WebSocketServer({ server, path: '/graphql' });
-useServer(
+startGraphqlWsServer(
   {
     schema,
     execute,
@@ -224,7 +220,7 @@ app.post('/upload/attachments', (req, res) => {
               // collect stderr to avoid EPIPE issues on some ffmpeg versions
               ff.stderr.on('data', () => { });
               ff.on('error', (err) => reject(err));
-              ff.on('close', (code) => {
+              ff.on('close', (_code) => {
                 try {
                   const raw = Buffer.concat(outChunks);
                   const sampleCount = Math.floor(raw.length / 2);
@@ -245,8 +241,8 @@ app.post('/upload/attachments', (req, res) => {
                     wf.push(Number(rms.toFixed(4)));
                   }
                   return resolve(wf);
-                } catch (e) {
-                  return reject(e);
+                } catch (error) {
+                  return reject(error);
                 }
               });
               // write buffer to ffmpeg stdin
@@ -258,7 +254,7 @@ app.post('/upload/attachments', (req, res) => {
               await prisma.attachment.update({ where: { id: db.id }, data: { data: { waveform } } as any });
               (db as any).data = { waveform };
             }
-          } catch (e) {
+          } catch {
             // fallback: approximate waveform from raw bytes if ffmpeg isn't available
             try {
               const segments = 40;
@@ -335,7 +331,7 @@ function parseMetaTags(html: string, baseUrl: string) {
   if (result['og:image'] && !/^https?:\/\//i.test(result['og:image'])) {
     try {
       result['og:image'] = new URL(result['og:image'], baseUrl).href;
-    } catch (err) {
+    } catch {
       // ignore invalid relative image URL
     }
   }
@@ -415,7 +411,7 @@ app.get('/api/v1/admin/users/:id', async (req, res) => {
     const dbUser = await prisma.user.findUnique({ where: { id: String(req.params.id) } });
     if (!dbUser) return res.status(404).json({ error: 'User not found', code: 'NOT_FOUND' });
     // return full user (do not include password)
-    const { password, ...rest } = dbUser as any;
+    const { password: _password, ...rest } = dbUser as any;
     const out = { ...rest, createdAt: rest.createdAt instanceof Date ? rest.createdAt.toISOString() : rest.createdAt };
     return res.json(out);
   } catch (e) {

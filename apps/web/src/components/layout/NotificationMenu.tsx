@@ -1,186 +1,79 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Menu, Group, Text, Badge, ScrollArea, UnstyledButton, Avatar } from '@mantine/core';
+import React, { useMemo, type FC } from 'react';
+import { Menu, Group, Text, Badge, ScrollArea, UnstyledButton } from '@mantine/core';
 import { IconBell } from '@tabler/icons-react';
 import { useRouter } from 'next/router';
-import { useQueryClient } from '@tanstack/react-query';
-import { createClient } from 'graphql-ws';
-import { notifications as mantineNotifications } from '@mantine/notifications';
-import { useNotifications, useMarkNotificationRead } from '@/hooks/useApi';
+import { useNotifications, useNotificationSubscription, useMarkNotificationRead } from '@/hooks/useApi';
 import { useAuth } from '@/contexts/AuthContext';
 import { getNotificationText, getTimeAgo } from '@/lib/tools';
+import type { Notification } from '@/types';
 
-const NOTIFICATIONS_SUBSCRIPTION = `subscription NotificationReceived($userId: ID!) {
-  notificationReceived(userId: $userId) {
-    id
-    type
-    linkId
-    read
-    createdAt
-    author { id username avatar }
-    user { id username avatar }
-  }
-}`;
-
-
-export default function NotificationMenu() {
+const NotificationMenu: FC = () => {
   const router = useRouter();
-  const queryClient = useQueryClient();
   const { user, token } = useAuth();
   const { data, isLoading } = useNotifications();
-  const [liveNotifications, setLiveNotifications] = useState<Array<any>>([]);
-
-  const notifications: Array<any> = useMemo(() => {
-    const fetched = (data && (data as any).notifications) || [];
-    return [...(liveNotifications || []), ...fetched].filter((item, index, self) => self.findIndex((n) => n.id === item.id) === index);
-  }, [data, liveNotifications]);
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
   const markRead = useMarkNotificationRead();
 
-  useEffect(() => {
-    if (!user?.id || !token) return;
+  useNotificationSubscription(user?.id, token);
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/graphql';
-    const wsUrl = apiUrl.replace(/^http/, 'ws');
+  const notifications = useMemo<Notification[]>(() => {
+    return (data as { notifications?: Notification[] } | undefined)?.notifications ?? [];
+  }, [data]);
 
-    const client = createClient({
-      url: wsUrl,
-      connectionParams: {
-        authorization: `Bearer ${token}`,
-      },
-    });
+  const unreadCount = notifications.filter((notification) => !notification.read).length;
 
-    const dispose = client.subscribe(
-      {
-        query: NOTIFICATIONS_SUBSCRIPTION,
-        variables: { userId: user.id },
-      },
-      {
-        next: (result) => {
-          const payload = (result as any).data?.notificationReceived;
-          if (!payload) return;
 
-          setLiveNotifications((prev) => {
-            if (prev.some((n) => n.id === payload.id)) return prev;
-            return [payload, ...prev].slice(0, 50);
-          });
-
-          mantineNotifications.show({
-            title: 'Nouvelle notification',
-            message: (
-              <Group align="center" spacing="sm">
-                <Avatar
-                  size={36}
-                  src={payload.author?.avatar || '/default-avatar.svg'}
-                  radius="xl"
-                  alt={payload.author?.username || 'Auteur'}
-                />
-                <div>
-                  <Text size="sm">{getNotificationText(payload)}</Text>
-                  <Text size="xs" c="dimmed">{getTimeAgo(new Date(payload.createdAt))}</Text>
-                </div>
-              </Group>
-            ),
-            autoClose: 7000,
-            color: 'pastelBlue',
-            onClick: () => {
-              router.push(`/posts/${payload.linkId}`);
-            },
-            style: { cursor: 'pointer' },
-          });
-
-          queryClient.setQueryData(['notifications', 20, 0], (oldData: any) => {
-            const existing = oldData?.notifications ?? [];
-            const merged = [payload, ...existing].filter((val, idx, arr) => arr.findIndex((it) => it.id === val.id) === idx);
-            return { notifications: merged.slice(0, 50) };
-          });
-        },
-        error: (err) => {
-          if (typeof CloseEvent !== 'undefined' && err instanceof CloseEvent) {
-            console.warn('Notification subscription websocket closed', {
-              type: err.type,
-              code: err.code,
-              reason: err.reason,
-              wasClean: err.wasClean,
-            });
-            return;
-          }
-
-          if (typeof ErrorEvent !== 'undefined' && err instanceof ErrorEvent) {
-            console.warn('Notification subscription websocket error event', {
-              type: err.type,
-              message: err.message,
-              filename: err.filename,
-              lineno: err.lineno,
-              colno: err.colno,
-            });
-            return;
-          }
-
-          if (err instanceof Event) {
-            console.warn('Notification subscription websocket event', err.type);
-            return;
-          }
-
-          if (err instanceof Error) {
-            console.error('Notification subscription error', err);
-            return;
-          }
-
-          console.error('Notification subscription error', err);
-        },
-        complete: () => {
-          console.info('Notification subscription completed');
-        },
+  const handleClick = async (notification: Notification) => {
+    if (!notification.read) {
+      try {
+        await markRead.mutateAsync({ id: notification.id });
+      } catch {
+        // ignore
       }
-    );
-
-    return () => {
-      dispose();
-      client.dispose();
-    };
-  }, [user?.id, token, queryClient]);
-
-  const handleClick = async (n: any) => {
-    try {
-      await markRead.mutateAsync({ id: n.id });
-    } catch (e) {
-      // ignore
     }
-    // reconstruct URL: for now map all types to posts
-    router.push(`/posts/${n.linkId}`);
+
+    router.push(`/posts/${notification.linkId}`);
   };
 
   return (
-    <Menu withArrow position="bottom-end">
+    <Menu shadow="md" width={320} position="bottom-end">
       <Menu.Target>
         <UnstyledButton>
-          <Group gap="xs">
+          <Group gap="xs" align="center">
             <IconBell size={18} />
             <Text>Notifications</Text>
-            {unreadCount > 0 ? <Badge color="red" size="sm">{unreadCount}</Badge> : null}
+            {unreadCount > 0 && (
+              <Badge color="red" size="sm">
+                {unreadCount}
+              </Badge>
+            )}
           </Group>
         </UnstyledButton>
       </Menu.Target>
 
-      <Menu.Dropdown style={{ minWidth: 300 }}>
-        <Menu.Label>Notifications</Menu.Label>
-        <ScrollArea style={{ height: 300 }}>
+      <Menu.Dropdown>
+        <Menu.Label>Notifications récentes</Menu.Label>
+        <ScrollArea h={300} offsetScrollbars>
           {isLoading ? (
             <Text p="sm">Chargement...</Text>
           ) : notifications.length === 0 ? (
-            <div style={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Text p="sm">Aucune notification</Text>
-            </div>
+            <Group justify="center" p="xl">
+              <Text color="dimmed">Aucune notification</Text>
+            </Group>
           ) : (
-            notifications.map((n) => (
-              <Menu.Item key={n.id} onClick={() => handleClick(n)}>
-                <Group justify="space-between" style={{ width: '100%' }}>
+            notifications.map((notification) => (
+              <Menu.Item key={notification.id} onClick={() => handleClick(notification)}>
+                <Group justify="apart" align="flex-start" style={{ width: '100%' }}>
                   <div>
-                    <Text size="sm">{getNotificationText(n)}</Text>
-                    <Text size="xs" c="dimmed">{getTimeAgo(new Date(n.createdAt))}</Text>
+                    <Text size="sm">{getNotificationText(notification)}</Text>
+                    <Text size="xs" c="dimmed">
+                      {getTimeAgo(new Date(notification.createdAt))}
+                    </Text>
                   </div>
-                  {!n.read ? <Badge color="orange">new</Badge> : null}
+                  {!notification.read && (
+                    <Badge color="orange" variant="light">
+                      new
+                    </Badge>
+                  )}
                 </Group>
               </Menu.Item>
             ))
@@ -189,4 +82,6 @@ export default function NotificationMenu() {
       </Menu.Dropdown>
     </Menu>
   );
-}
+};
+
+export default NotificationMenu;

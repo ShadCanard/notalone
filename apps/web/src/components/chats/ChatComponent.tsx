@@ -2,12 +2,12 @@ import { Avatar, Badge, Box, Card, Collapse, Divider, Group, Skeleton, Stack, Te
 import { IconX } from '@tabler/icons-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useInfiniteMessages, useSendMessage, useSetTypingStatus, useMarkMessageRead } from '@/hooks/useApi';
+import type { InfiniteMessagesPage, Message } from '@/types';
 
 type ChatComponentProps = {
   conversationId: string;
   avatar: string;
   username: string;
-  lastMessage: string;
   collapsed: boolean;
   onToggleCollapse: () => void;
   onClose?: () => void;
@@ -18,7 +18,6 @@ export default function ChatComponent({
   conversationId,
   avatar,
   username,
-  lastMessage,
   collapsed,
   onToggleCollapse,
   onClose,
@@ -50,20 +49,16 @@ export default function ChatComponent({
     setTypingStatusRef.current = setTypingStatus;
   }, [setTypingStatus]);
 
-  const messages = useMemo(
-    () =>
-      data?.pages
-        .slice()
-        .reverse()
-        .flatMap((page) => [...page.messages].reverse()) ?? [],
-    [data]
-  );
-  const unreadCount = messages.filter((message) => message.receiver.id !== conversationId && !message.read).length;
+  const messages = useMemo<Message[]>(() => {
+    const pages = (data?.pages ?? []) as InfiniteMessagesPage[];
+    if (!pages.length) return [];
+    return pages
+      .slice()
+      .reverse()
+      .flatMap((page) => (Array.isArray(page?.messages) ? [...page.messages].reverse() : []));
+  }, [data]);
+  const unreadCount = messages.filter((message: Message) => message.receiver.id !== conversationId && !message.read).length;
 
-  const lastMessageLabel = useMemo(
-    () => messages[messages.length - 1]?.content ?? lastMessage,
-    [lastMessage, messages]
-  );
 
   const sendTypingStatus = async (isTyping: boolean) => {
     try {
@@ -110,7 +105,7 @@ export default function ChatComponent({
 
     messages.forEach((message) => {
       if (message.read) return;
-      if (message.receiver.id === conversationId) return;
+      if (message.receiver.id === conversationId && message.sender.id !== message.receiver.id) return;
       if (alreadyMarkedReadRef.current.has(message.id)) return;
 
       const messageEl = messageRefs.current[message.id];
@@ -146,6 +141,8 @@ export default function ChatComponent({
     markVisibleUnreadMessagesRead();
   }, [messages]);
 
+  const pageCount = data?.pages?.length ?? 0;
+
   useEffect(() => {
     const el = messagesContainerRef.current;
     if (!el || previousScrollHeightRef.current === null) return;
@@ -154,7 +151,7 @@ export default function ChatComponent({
       el.scrollTop = addedHeight;
     }
     previousScrollHeightRef.current = null;
-  }, [data?.pages?.length]);
+  }, [pageCount]);
 
   const scrollToBottom = () => {
     const el = messagesContainerRef.current;
@@ -347,7 +344,7 @@ export default function ChatComponent({
                               border: isMine ? '1px solid rgba(16, 42, 67, 0.08)' : '1px solid rgba(16, 42, 67, 0.12)',
                             }}
                           >
-                            <Text size="sm">{message.content}</Text>
+                            <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{message.content}</Text>
                           </Box>
                           {!isMine ? (
                             <Text size="xs" c="dimmed" style={{ minWidth: 40, textAlign: 'left' }}>

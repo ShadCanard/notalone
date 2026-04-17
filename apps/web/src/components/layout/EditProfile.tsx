@@ -1,9 +1,10 @@
-import { Card, Stack, TextInput, Textarea, Button, Avatar, Group, Title, FileButton, ActionIcon } from '@mantine/core';
+import { Card, Stack, TextInput, Textarea, Button, Avatar, Group, Title, ActionIcon } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
 import { useMe, useUpdateProfile, useUploadAvatar } from '@/hooks/useApi';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useRef, useState } from 'react';
+import type { User } from '@/types';
 import { getUploadUrl } from '@/lib/uploads';
 import { IconEdit } from '@tabler/icons-react';
 
@@ -26,13 +27,13 @@ export default function EditProfile() {
   const [hovered, setHovered] = useState(false);
 
   useEffect(() => {
-    const me = data?.me || user;
+    const me: User | undefined = data?.me || user;
     if (me) {
       form.setValues({
-        firstName: (me as any).firstName || '',
-        lastName: (me as any).lastName || '',
-        bio: (me as any).bio || '',
-        avatar: (me as any).avatar || '',
+        firstName: me.firstName || '',
+        lastName: me.lastName || '',
+        bio: me.bio || '',
+        avatar: me.avatar || '',
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -92,7 +93,7 @@ export default function EditProfile() {
             const file = e.target.files?.[0];
             if (!file) return;
             uploadAvatar.mutate(file, {
-              onSuccess: (data: any) => {
+              onSuccess: (data) => {
                 const url = data.url || '';
                 form.setFieldValue('avatar', url);
                 // persist avatar to profile

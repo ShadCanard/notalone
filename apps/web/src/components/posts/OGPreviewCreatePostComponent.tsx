@@ -59,9 +59,10 @@ export default function OGPreviewCreatePostComponent({ url, hiddenUrl, onPreview
 
         setPreview(nextPreview);
         onPreviewChange(nextPreview);
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (!controller.signal.aborted) {
-          setError(err?.message || 'Impossible de récupérer l’aperçu');
+          const message = err instanceof Error ? err.message : 'Impossible de récupérer l’aperçu';
+          setError(message);
           setPreview(null);
           onPreviewChange(null);
         }

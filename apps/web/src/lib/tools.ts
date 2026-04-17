@@ -18,7 +18,9 @@ export function getTimeAgo(date: Date): string {
   return date.toLocaleDateString('fr-FR');
 }
 
-export function getNotificationText(notification: any): string {
+import type { Notification } from '@/types';
+
+export function getNotificationText(notification: Notification): string {
   const actor = notification.author?.username || 'Quelqu’un';
   switch (notification.type) {
     case 'NEW_COMMENT':

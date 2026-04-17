@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { Center, Loader, Stack, Card, Text, Alert } from '@mantine/core';
 import PostCard from './PostCard';
-import { usePosts } from '@/hooks/useApi';
+import { usePosts, useCommentSubscriptions, usePostSubscriptions } from '@/hooks/useApi';
+import { useAuth } from '@/contexts/AuthContext';
 import type { Post as PostType } from '@/types';
 
 type FeedComponentProps = {
   posts?: PostType[];
+  userId?: string;
   isLoading?: boolean;
   error?: unknown;
   fetchNextPage?: () => void;
@@ -16,6 +18,7 @@ type FeedComponentProps = {
 
 export default function FeedComponent({
   posts: externalPosts,
+  userId,
   isLoading: externalLoading,
   error: externalError,
   fetchNextPage,
@@ -35,9 +38,13 @@ export default function FeedComponent({
 
   const posts = useMemo(() => {
     if (isControlled) return externalPosts ?? [];
-    const pages = ((internalData as any)?.pages ?? []) as Array<{ posts: PostType[] }>;
+    const pages = (internalData?.pages ?? []) as Array<{ posts: PostType[] }>;
     return pages.flatMap((page) => page.posts);
   }, [externalPosts, internalData, isControlled]);
+
+  const { token } = useAuth();
+  useCommentSubscriptions(token, userId);
+  usePostSubscriptions(token, userId);
 
   const isLoading = isControlled ? externalLoading : internalLoading;
   const error = isControlled ? externalError : internalError;

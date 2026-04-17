@@ -1,11 +1,9 @@
 import { Box, Loader } from '@mantine/core';
 import { useEffect, useMemo, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { createClient } from 'graphql-ws';
 import { useAuth } from '@/contexts/AuthContext';
 import ChatComponent from './ChatComponent';
 import ChatListComponent from './ChatListComponent';
-import { useConversations } from '@/hooks/useApi';
+import { useChatSubscriptions, useConversations } from '@/hooks/useApi';
 
 type OpenConversation = {
   id: string;
@@ -28,7 +26,6 @@ export default function ChatWidget() {
 
   const conversationsQuery = useConversations(50, 0);
 
-  const queryClient = useQueryClient();
   const { user, token } = useAuth();
 
   const conversations = useMemo(
@@ -66,7 +63,7 @@ export default function ChatWidget() {
       const restoredOpenConversations = savedOpenConversations.flatMap((item) => {
         const conversation = conversations.find((c) => c.id === item.id);
         if (!conversation) return [];
-        return [{ ...conversation, collapsed: Boolean(item.collapsed) }];
+        return [{ ...conversation, collapsed: !!item.collapsed }];
       });
 
       if (restoredOpenConversations.length > 0) {
@@ -93,7 +90,7 @@ export default function ChatWidget() {
         JSON.stringify({
           openConversations: openConversations.map((conversation) => ({
             id: conversation.id,
-            collapsed: Boolean(conversation.collapsed),
+            collapsed: !!conversation.collapsed,
           })),
           collapsed,
           showOnlyAvatar,
@@ -140,134 +137,32 @@ export default function ChatWidget() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!user?.id || !token) return;
-
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/graphql';
-    const wsUrl = apiUrl.replace(/^http/, 'ws');
-
-    const client = createClient({
-      url: wsUrl,
-      connectionParams: {
-        authorization: `Bearer ${token}`,
-      },
-    });
-
-    const MESSAGE_RECEIVED_SUBSCRIPTION = `subscription MessageReceived($userId: ID!) {
-      messageReceived(userId: $userId) {
-        id
-        content
-        read
-        createdAt
-        sender { id username avatar }
-        receiver { id username avatar }
-      }
-    }`;
-
-    const dispose = client.subscribe(
-      {
-        query: MESSAGE_RECEIVED_SUBSCRIPTION,
-        variables: { userId: user.id },
-      },
-      {
-        next: (result) => {
-          const payload = (result as any).data?.messageReceived;
-          if (!payload) return;
-
-          const sender = payload.sender;
-
-          queryClient.setQueryData(['conversations', 50, 0], (oldData: any) => {
-            const existing = oldData?.conversations ?? [];
-            const updated = existing.map((conversation: any) => {
-              if (conversation.id !== sender.id) return conversation;
-              return {
-                ...conversation,
-                lastMessage: payload.content,
-                lastMessageAt: payload.createdAt,
-                unreadCount: (conversation.unreadCount ?? 0) + 1,
-              };
-            });
-
-            if (existing.some((conversation: any) => conversation.id === sender.id)) {
-              return { conversations: updated };
-            }
-
-            const newConversation = {
-              id: sender.id,
-              partner: sender,
-              lastMessage: payload.content,
-              lastMessageAt: payload.createdAt,
-              unreadCount: 1,
-            };
-            return { conversations: [newConversation, ...existing].slice(0, 50) };
-          });
-
-          queryClient.setQueryData(['messages', sender.id], (oldData: any) => {
-            const existing = oldData?.messages ?? [];
-            if (existing.some((message: any) => message.id === payload.id)) return oldData;
-            return { messages: [...existing, payload] };
-          });
-        },
-        error: (err) => {
-          console.error('Message subscription error', err);
-        },
-        complete: () => {
-          console.info('Message subscription completed');
-        },
-      }
-    );
-
-    const TYPING_RECEIVED_SUBSCRIPTION = `subscription TypingStatus($userId: ID!) {
-      typingStatus(userId: $userId) {
-        sender { id username avatar }
-        receiver { id username avatar }
-        isTyping
-      }
-    }`;
-
-    const disposeTyping = client.subscribe(
-      {
-        query: TYPING_RECEIVED_SUBSCRIPTION,
-        variables: { userId: user.id },
-      },
-      {
-        next: (result) => {
-          const payload = (result as any).data?.typingStatus;
-          if (!payload) return;
-          const sender = payload.sender;
-          console.log('[ChatWidget] typing event received', {
-            timestamp: new Date().toISOString(),
-            senderId: sender.id,
-            senderUsername: sender.username,
-            isTyping: payload.isTyping,
-          });
-          setOpenConversations((current) =>
-            current.map((conversation) =>
-              conversation.id === sender.id ? { ...conversation, isTyping: payload.isTyping } : conversation
-            )
-          );
-        },
-        error: (err) => {
-          console.error('Typing subscription error', err);
-        },
-        complete: () => {
-          console.info('Typing subscription completed');
-        },
-      }
-    );
-
-    return () => {
-      dispose();
-      disposeTyping();
-      client.dispose();
-    };
-  }, [user?.id, token, queryClient]);
+  useChatSubscriptions(
+    user?.id,
+    token,
+    (typingStatus) => {
+      const sender = typingStatus.sender;
+      setOpenConversations((current) =>
+        current.map((conversation) =>
+          conversation.id === sender.id ? { ...conversation, isTyping: typingStatus.isTyping } : conversation
+        )
+      );
+    },
+    (message) => {
+      const sender = message.sender;
+      setOpenConversations((current) =>
+        current.map((conversation) =>
+          conversation.id === sender.id ? { ...conversation, isTyping: false } : conversation
+        )
+      );
+    }
+  );
 
   const handleToggleConversationCollapsed = (conversationId: string) => {
     setOpenConversations((current) =>
       current.map((conversation) =>
         conversation.id === conversationId
-          ? { ...conversation, collapsed: !Boolean(conversation.collapsed) }
+          ? { ...conversation, collapsed: !conversation.collapsed }
           : conversation
       )
     );
@@ -293,8 +188,8 @@ export default function ChatWidget() {
           avatar={conversation.avatar}
           username={conversation.username}
           lastMessage={conversation.lastMessage}
-          collapsed={Boolean(conversation.collapsed)}
-          isTyping={Boolean(conversation.isTyping)}
+          collapsed={!!conversation.collapsed}
+          isTyping={!!conversation.isTyping}
           onToggleCollapse={() => handleToggleConversationCollapsed(conversation.id)}
           onClose={() => handleCloseConversation(conversation.id)}
         />

@@ -93,8 +93,9 @@ export default function PostCard({ post, preview }: PostCardProps) {
           setIsEditing(false);
           notifications.show({ title: 'Post modifié', message: 'Le contenu du post a été mis à jour.', color: 'green' });
         },
-        onError: (error: any) => {
-          notifications.show({ title: 'Erreur', message: error?.message || 'Impossible de modifier le post.', color: 'red' });
+        onError: (error: unknown) => {
+          const message = error instanceof Error ? error.message : 'Impossible de modifier le post.';
+          notifications.show({ title: 'Erreur', message, color: 'red' });
         },
       }
     );
@@ -228,7 +229,6 @@ export default function PostCard({ post, preview }: PostCardProps) {
           {post.attachments.map((a) => (
             <div key={a.id}>
               {a.mimeType?.startsWith('image/') ? (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={getUploadUrl(a.path)}
                   alt={a.filename}

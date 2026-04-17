@@ -1,13 +1,12 @@
 import { createSchema } from 'graphql-yoga';
-import bcrypt from 'bcryptjs';
-import prisma from './prisma.js';
-import { generateToken, type TokenPayload } from './auth.js';
-import { resolvers } from './resolvers.js';
+import { createPubSub } from '@graphql-yoga/subscription';
 import { typeDefs } from './typeDefs.js';
+import { resolvers } from './resolvers.js';
+import { type TokenPayload } from './auth.js';
 
 export interface Context {
   user: (TokenPayload & { role?: string }) | null;
-  pubsub: any;
+  pubsub: ReturnType<typeof createPubSub>;
 }
 
 export const schema = createSchema<Context>({

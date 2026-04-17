@@ -80,7 +80,8 @@ export default function PublicProfilePage() {
             <Stack gap="md">
               <Title order={3}>Posts</Title>
               <FeedComponent
-                posts={(user as any).posts ?? []}
+                userId={user?.id}
+                posts={user?.posts ?? []}
                 emptyStateMessage="Cet utilisateur n'a pas encore partagé de post."
               />
             </Stack>

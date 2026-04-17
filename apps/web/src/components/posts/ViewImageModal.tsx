@@ -35,7 +35,8 @@ export default function ViewImageModal({ opened, onClose, imageSrc, post }: View
           notifications.show({ title: 'Connexion requise', message: 'Connecte-toi pour soutenir ce post', color: 'pastelBlue' });
           return;
         }
-        toggleLike.mutate({ postId: post?.id! });
+        if (!post?.id) return;
+        toggleLike.mutate({ postId: post.id });
       };
 
   useEffect(() => {
@@ -75,15 +76,15 @@ export default function ViewImageModal({ opened, onClose, imageSrc, post }: View
   async function handleAddComment() {
     if (!newComment.trim()) return;
     if (!post?.id) {
-      const temp = { id: `tmp-${Date.now()}`, content: newComment.trim(), createdAt: new Date().toISOString(), author: { id: 'me', username: 'Moi' } } as Comment
+      const temp = { id: `tmp-${Date.now()}`, content: newComment.trim(), createdAt: new Date().toISOString(), author: { id: 'me', username: 'Moi' } } as Comment;
       setLocalComments((c) => [temp, ...c]);
       setNewComment('');
       return;
     }
 
     try {
-      const res = await createComment.mutateAsync({ postId: post.id, content: newComment.trim() } as any);
-      const created = (res as any).createComment as Comment;
+      const res = await createComment.mutateAsync({ postId: post.id, content: newComment.trim() });
+      const created = res.createComment;
       setLocalComments((c) => [created, ...c]);
       setNewComment('');
     } catch (e) {

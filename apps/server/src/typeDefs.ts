@@ -117,6 +117,8 @@ export const typeDefs = /* GraphQL */ `
       notificationReceived(userId: ID!): Notification!
       messageReceived(userId: ID!): Message!
       typingStatus(userId: ID!): TypingStatus!
+      commentCreated(postId: ID, userId: ID): Comment!
+      postCreated(userId: ID): Post!
     }
 
     type Mutation {

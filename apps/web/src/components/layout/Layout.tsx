@@ -13,14 +13,9 @@ interface LayoutProps {
 }
 
 export default function Layout({ children }: LayoutProps) {
-  const { user, isAuthenticated, logout } = useAuth();
+  const { isAuthenticated } = useAuth();
   const router = useRouter();
-  const [opened, { toggle, close }] = useDisclosure(false);
-
-  const handleLogout = () => {
-    logout();
-    router.push('/');
-  };
+  const [opened, { toggle }] = useDisclosure(false);
 
   return (
     <AppShell
@@ -99,7 +94,7 @@ export default function Layout({ children }: LayoutProps) {
           </Stack>
         </Group>
       </Group>
-      <ChatWidget />
+      {isAuthenticated && <ChatWidget />}
       </AppShell.Main>
     </AppShell>
   );

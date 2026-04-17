@@ -20,8 +20,9 @@ export default function CreateCommentComponent({ postId }: CreateCommentComponen
           setCommentText('');
           notifications.show({ title: 'Commentaire ajouté', message: 'Merci pour ton soutien ! 🧡', color: 'green' });
         },
-        onError: (error: any) => {
-          notifications.show({ title: 'Erreur', message: error?.message || 'Impossible d\'envoyer le commentaire.', color: 'red' });
+        onError: (error: unknown) => {
+          const message = error instanceof Error ? error.message : 'Impossible d\'envoyer le commentaire.';
+          notifications.show({ title: 'Erreur', message, color: 'red' });
         },
       }
     );

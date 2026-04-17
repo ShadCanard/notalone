@@ -3,7 +3,7 @@ import Layout from '@/components/layout/Layout';
 import { useEffect, useState } from 'react';
 import Head from 'next/head';
 import { useAuth } from '@/contexts/AuthContext';
-import { useMessages, useSendMessage } from '@/hooks/useApi';
+import { useMessages, useSendMessage, useSetTypingStatus } from '@/hooks/useApi';
 import { Container, Title, Text, Card, Center, Loader, Stack, Textarea, Button } from '@mantine/core';
 
 export default function MessagesUserPage() {
@@ -12,6 +12,7 @@ export default function MessagesUserPage() {
   const userId = typeof id === 'string' ? id : undefined;
   const { data, isLoading } = useMessages(userId);
   const sendMessage = useSendMessage();
+  const setTypingStatus = useSetTypingStatus();
   const { isAuthenticated } = useAuth();
   const [content, setContent] = useState('');
 
@@ -38,13 +39,30 @@ export default function MessagesUserPage() {
           {data?.messages?.filter(m => m.sender.id === userId).map((m) => (
             <Card key={m.id} padding="md">
               <Text size="sm" c="dimmed">{new Date(String(m.createdAt)).toLocaleString('fr-FR')}</Text>
-              <Text mt="sm">{m.content}</Text>
+              <Text mt="sm" style={{ whiteSpace: 'pre-wrap' }}>{m.content}</Text>
             </Card>
           ))}
 
           <Card padding="md">
             <Textarea placeholder="Écrire un message..." value={content} onChange={(e) => setContent(e.currentTarget.value)} autosize minRows={2} />
-            <Button mt="sm" color="pastelBlue" onClick={() => { if (!content.trim()) return; sendMessage.mutate({ receiverId: userId, content }, { onSuccess: () => setContent('') }); }}>Envoyer</Button>
+            <Button
+              mt="sm"
+              color="pastelBlue"
+              onClick={() => {
+                if (!content.trim()) return;
+                sendMessage.mutate(
+                  { receiverId: userId, content },
+                  {
+                    onSuccess: () => {
+                      setContent('');
+                      setTypingStatus.mutate({ receiverId: userId, isTyping: false });
+                    },
+                  }
+                );
+              }}
+            >
+              Envoyer
+            </Button>
           </Card>
         </Stack>
       </Container>

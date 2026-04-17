@@ -34,7 +34,6 @@ export default function OGPreviewPostComponent({
   fallbackSiteName,
 }: OGPreviewPostComponentProps) {
   const [preview, setPreview] = useState<{ title?: string; description?: string; image?: string; siteName?: string } | null>(null);
-  const [loading, setLoading] = useState(false);
   const [showPlayer, setShowPlayer] = useState(false);
 
   const youTubeId = url ? getYouTubeVideoId(url) : null;
@@ -42,14 +41,12 @@ export default function OGPreviewPostComponent({
   useEffect(() => {
     if (!url) {
       setPreview(null);
-      setLoading(false);
       setShowPlayer(false);
       return;
     }
 
     const controller = new AbortController();
     const fetchPreview = async () => {
-      setLoading(true);
       try {
         const res = await fetch(`${apiBase}/api/og-preview?url=${encodeURIComponent(url)}`, {
           signal: controller.signal,
@@ -67,10 +64,6 @@ export default function OGPreviewPostComponent({
         });
       } catch {
         setPreview(null);
-      } finally {
-        if (!controller.signal.aborted) {
-          setLoading(false);
-        }
       }
     };
 

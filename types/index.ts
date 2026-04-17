@@ -97,3 +97,47 @@ export interface AuthPayload {
   token: string;
   user: User;
 }
+
+export interface NotificationsQueryData {
+  notifications: Notification[];
+}
+
+export interface ConversationsQueryData {
+  conversations: Conversation[];
+}
+
+export interface MessageSubscriptionPayload {
+  messageReceived: Message;
+}
+
+export interface TypingStatusSubscriptionPayload {
+  typingStatus: TypingStatus;
+}
+
+export interface CommentCreatedSubscriptionPayload {
+  commentCreated: Comment;
+}
+
+export interface PostCreatedSubscriptionPayload {
+  postCreated: Post;
+}
+
+export interface PaginatedMessagesData {
+  messagesPaginated: Message[];
+}
+
+export interface InfiniteMessagesPage {
+  messages: Message[];
+}
+
+export interface InfiniteMessagesData {
+  pages: InfiniteMessagesPage[];
+}
+
+export interface PostQueryData {
+  post: Post;
+}
+
+export interface PostPagesData {
+  pages: { posts: Post[] }[];
+}

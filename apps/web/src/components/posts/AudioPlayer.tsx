@@ -1,8 +1,8 @@
 import { ActionIcon, Group, Text, Box, Paper, UnstyledButton } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconPlayerPlayFilled, IconPlayerPauseFilled, IconSquare, IconPlayerStopFilled } from '@tabler/icons-react';
+import { IconPlayerPlayFilled, IconPlayerPauseFilled, IconPlayerStopFilled } from '@tabler/icons-react';
 import { getUploadUrl } from '@/lib/uploads';
-import { useEffect, useRef, useState, useMemo, useCallback, type FC } from 'react';
+import { useEffect, useRef, useState, useCallback, type FC } from 'react';
 
 interface AudioPlayerProps {
   src: string;
@@ -76,7 +76,7 @@ const AudioPlayer: FC<AudioPlayerProps> = ({ src, filename, autoPlay = false, lo
     if (!el) return;
 
     // create AudioContext and analyser
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    const AudioCtx = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     const audioCtx = audioCtxRef.current ?? new AudioCtx();
     audioCtxRef.current = audioCtx;
 
@@ -96,12 +96,12 @@ const AudioPlayer: FC<AudioPlayerProps> = ({ src, filename, autoPlay = false, lo
         try {
           source.connect(audioCtx.destination);
           sourceConnectedRef.current = true;
-        } catch (e) {
+        } catch {
           sourceConnectedRef.current = false;
         }
       }
       skipAnalyserRef.current = false;
-    } catch (e) {
+    } catch {
       // creating MediaElementSource can fail (already used, CORS...), skip analyser safely
       skipAnalyserRef.current = true;
       sourceRef.current = null;
@@ -115,7 +115,7 @@ const AudioPlayer: FC<AudioPlayerProps> = ({ src, filename, autoPlay = false, lo
       if (!analyserRef.current || skipAnalyserRef.current) return;
       try {
         analyserRef.current.getByteFrequencyData(dataArray);
-      } catch (err) {
+      } catch {
         // reading frequency data can throw if CORS taints the buffer; stop analyser
         skipAnalyserRef.current = true;
         return;
@@ -146,7 +146,7 @@ const AudioPlayer: FC<AudioPlayerProps> = ({ src, filename, autoPlay = false, lo
         if (analyser) analyser.disconnect();
         sourceRef.current = null;
         sourceConnectedRef.current = false;
-      } catch (e) {}
+      } catch (_e) { void _e; }
       // do not close AudioContext here to avoid unlock delays on subsequent plays
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -162,7 +162,7 @@ const AudioPlayer: FC<AudioPlayerProps> = ({ src, filename, autoPlay = false, lo
       if (audioCtx && audioCtx.state === 'suspended') {
         try {
           await audioCtx.resume();
-        } catch (e) {
+        } catch {
           // ignore resume failure, we'll fallback to native controls later
         }
       }
@@ -172,11 +172,13 @@ const AudioPlayer: FC<AudioPlayerProps> = ({ src, filename, autoPlay = false, lo
           try {
             sourceRef.current.connect(audioCtx.destination);
             sourceConnectedRef.current = true;
-          } catch (e) {
+          } catch {
             sourceConnectedRef.current = false;
           }
         }
-      } catch (e) {}
+      } catch {
+        // ignore connection errors
+      }
     };
 
     if (el.paused) {
@@ -185,12 +187,11 @@ const AudioPlayer: FC<AudioPlayerProps> = ({ src, filename, autoPlay = false, lo
         try {
           el.muted = false;
           el.volume = 1;
-        } catch (e) {}
+        } catch (_e) {
+          void _e;
+        }
         // resume audio context and connect source if needed (await to ensure state)
         await tryResume();
-        // show diagnostic after resume/connect attempt
-        try {
-        } catch (e) {}
         // if source isn't connected, try fetching the file as a blob (same-origin) and play that
         if (!sourceConnectedRef.current) {
           try {
@@ -205,7 +206,7 @@ const AudioPlayer: FC<AudioPlayerProps> = ({ src, filename, autoPlay = false, lo
               usingBlobRef.current = true;
               el.src = url;
             }
-          } catch (e) {
+          } catch {
             // fetch failed — we'll fallback to native controls later
           }
         }
@@ -221,7 +222,7 @@ const AudioPlayer: FC<AudioPlayerProps> = ({ src, filename, autoPlay = false, lo
                   // try buffer fallback via decodeAudioData
                   (async () => {
                     try {
-                      const audioCtx = audioCtxRef.current ?? new (window.AudioContext || (window as any).webkitAudioContext)();
+                      const audioCtx = audioCtxRef.current ?? new (window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext)();
                       audioCtxRef.current = audioCtx;
                       // fetch raw bytes
                       const fetchUrl = getUploadUrl(src) || src;
@@ -233,7 +234,9 @@ const AudioPlayer: FC<AudioPlayerProps> = ({ src, filename, autoPlay = false, lo
                       if (bufferPlayingRef.current && bufferSourceRef.current) {
                         try {
                           bufferSourceRef.current.stop();
-                        } catch (e) {}
+                        } catch (_e) {
+                          void _e;
+                        }
                         bufferSourceRef.current.disconnect();
                         bufferSourceRef.current = null;
                         bufferPlayingRef.current = false;
@@ -246,21 +249,27 @@ const AudioPlayer: FC<AudioPlayerProps> = ({ src, filename, autoPlay = false, lo
                       bufferPlayingRef.current = true;
                       setIsPlaying(true);
                       return;
-                    } catch (e) {
+                    } catch {
                       try {
                         el.controls = true;
-                      } catch (e) {}
+                      } catch (_e) {
+                        void _e;
+                      }
                       notifications.show({ title: 'Aucun son détecté', message: 'Active le lecteur natif pour démarrer la lecture.', color: 'red' });
                     }
                   })();
                 }
-              } catch (e) {}
+              } catch (_e) {
+                void _e;
+              }
             }, 600);
           }).catch((err) => {
             // Chrome may block playback; fallback to showing controls so user can interact
             try {
               el.controls = true;
-            } catch (e) {}
+            } catch (_e) {
+              void _e;
+            }
             notifications.show({ title: 'Lecture bloquée', message: err?.message || 'Clique sur le bouton de lecture du lecteur', color: 'red' });
             setIsPlaying(false);
           });
@@ -268,7 +277,9 @@ const AudioPlayer: FC<AudioPlayerProps> = ({ src, filename, autoPlay = false, lo
       } catch (err: any) {
         try {
           el.controls = true;
-        } catch (e) {}
+        } catch (_e) {
+          void _e;
+        }
         notifications.show({ title: 'Erreur lecture', message: err?.message || 'Impossible de lancer la lecture', color: 'red' });
         setIsPlaying(false);
       }
@@ -295,18 +306,24 @@ const AudioPlayer: FC<AudioPlayerProps> = ({ src, filename, autoPlay = false, lo
         // restore original src
         if (originalSrcRef.current) el.src = originalSrcRef.current;
       }
-    } catch (e) {}
+    } catch (_e) {
+      void _e;
+    }
     // stop buffer source if playing
     try {
       if (bufferPlayingRef.current && bufferSourceRef.current) {
         try {
           bufferSourceRef.current.stop();
-        } catch (e) {}
+        } catch (_e) {
+          void _e;
+        }
         bufferSourceRef.current.disconnect();
         bufferSourceRef.current = null;
         bufferPlayingRef.current = false;
       }
-    } catch (e) {}
+    } catch (_e) {
+      void _e;
+    }
   }, []);
 
   // If autoPlay prop set, trigger play when audio loaded
@@ -334,6 +351,7 @@ const AudioPlayer: FC<AudioPlayerProps> = ({ src, filename, autoPlay = false, lo
       }}
     >
       <audio ref={audioRef} src={getUploadUrl(src) || src} preload="metadata" loop={loop} crossOrigin="anonymous" />
+      {filename ? <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>{filename}</Text> : null}
 
       {/* Play Button */}
       <UnstyledButton

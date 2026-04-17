@@ -1,4 +1,4 @@
-import { Card, Textarea, Button, Group, Select, Switch, Stack, FileButton, Text, Image, CloseButton, ActionIcon, Badge, Skeleton, Box } from '@mantine/core';
+import { Card, Textarea, Button, Group, Select, Switch, Stack, FileButton, Image, CloseButton, ActionIcon, Badge } from '@mantine/core';
 import { IconMicrophone } from '@tabler/icons-react';
 import { useForm } from '@mantine/form';
 import { useCreatePost, useUploadAttachments } from '@/hooks/useApi';
@@ -19,16 +19,23 @@ const moodOptions = [
   { value: 'struggling', label: '🌧️ En difficulté' },
 ];
 
+interface CreatePostFormValues {
+  content: string;
+  mood: string;
+  isPublic: boolean;
+  files: File[];
+}
+
 export default function CreatePostForm() {
   const createPost = useCreatePost();
   const uploadAttachments = useUploadAttachments();
 
-  const form = useForm({
+  const form = useForm<CreatePostFormValues>({
     initialValues: {
       content: '',
       mood: '',
       isPublic: true,
-      files: [] as File[],
+      files: [],
     },
     validate: {
       content: (value) => (value.trim().length < 1 ? 'Écris quelque chose...' : null),
@@ -40,13 +47,13 @@ export default function CreatePostForm() {
   const [detectedUrl, setDetectedUrl] = useState<string | null>(null);
   const [hiddenPreviewUrl, setHiddenPreviewUrl] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
-  const mediaRecorderRef = (useRef as any) ? useRef<MediaRecorder | null>(null) : null;
-  const mediaStreamRef = (useRef as any) ? useRef<MediaStream | null>(null) : null;
-  const chunksRef = (useRef as any) ? useRef<Blob[]>([]) : null;
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
 
   useEffect(() => {
     // create object URLs for previews
-    const files: File[] = (form.values as any).files || [];
+    const files = form.values.files || [];
     // revoke old
     setPreviews((prev) => {
       prev.forEach((p) => URL.revokeObjectURL(p.url));
@@ -57,7 +64,7 @@ export default function CreatePostForm() {
     return () => {
       next.forEach((p) => URL.revokeObjectURL(p.url));
     };
-  }, [(form.values as any).files]);
+  }, [form.values.files]);
 
   const contentInputProps = form.getInputProps('content');
 
@@ -85,17 +92,17 @@ export default function CreatePostForm() {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (mediaStreamRef) mediaStreamRef.current = stream;
+      mediaStreamRef.current = stream;
       const mr = new MediaRecorder(stream);
-      if (mediaRecorderRef) mediaRecorderRef.current = mr;
-      chunksRef && (chunksRef.current = []);
+      mediaRecorderRef.current = mr;
+      chunksRef.current = [];
       mr.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) chunksRef && chunksRef.current.push(e.data);
+        if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
       };
       mr.onstop = () => {
         const blob = new Blob(chunksRef ? chunksRef.current : [], { type: 'audio/webm' });
         const file = new File([blob], `voice-${Date.now()}.webm`, { type: blob.type });
-        const prev = (form.values as any).files || [];
+        const prev = form.values.files || [];
         form.setFieldValue('files', [...prev, file]);
         setIsRecording(false);
         // release stream tracks
@@ -106,13 +113,14 @@ export default function CreatePostForm() {
       };
       mr.start();
       setIsRecording(true);
-    } catch (err) {
+    } catch (_err) {
+      void _err;
       notifications.show({ title: 'Micro inaccessible', message: 'Autorise l\'accès au micro dans ton navigateur.', color: 'red' });
     }
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef && mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
     setIsRecording(false);
@@ -124,7 +132,7 @@ export default function CreatePostForm() {
       let payload: Record<string, unknown> | undefined = undefined;
       if (values.files && values.files.length > 0) {
         try {
-          const res = await uploadAttachments.mutateAsync(values.files as File[]);
+          const res = await uploadAttachments.mutateAsync(values.files);
           const attachments = res?.attachments || [];
           const valid = attachments.filter((a) => a && a.id);
           if (valid.length !== attachments.length) {
@@ -134,8 +142,8 @@ export default function CreatePostForm() {
           if (valid.length > 0) {
             payload = { attachments: valid };
           }
-        } catch (err: any) {
-          const message = err?.message || 'Échec de l\'upload des fichiers';
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : 'Échec de l\'upload des fichiers';
           notifications.show({ title: 'Erreur upload', message, color: 'red' });
           return;
         }
@@ -161,8 +169,8 @@ export default function CreatePostForm() {
       setHiddenPreviewUrl(null);
       form.reset();
       notifications.show({ title: 'Post publié !', message: 'Merci de partager avec la communauté 💙', color: 'green' });
-    } catch (e: any) {
-      const msg = e?.message || 'Impossible de publier le post. Réessaie.';
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Impossible de publier le post. Réessaie.';
       notifications.show({ title: 'Erreur', message: msg, color: 'red' });
     }
   });
@@ -176,7 +184,7 @@ export default function CreatePostForm() {
                 {previews.map((p, idx) => (
                   <Card key={p.url} shadow="sm" padding="xs" radius="md" style={{ width: 160, position: 'relative' }}>
                     <CloseButton size="sm" style={{ position: 'absolute', right: 6, top: 6 }} onClick={() => {
-                      const prev: File[] = (form.values as any).files || [];
+                      const prev = form.values.files || [];
                       const next = prev.filter((_, i) => i !== idx);
                       form.setFieldValue('files', next);
                       setPreviews((pv) => pv.filter((_, i) => i !== idx));
@@ -229,7 +237,7 @@ export default function CreatePostForm() {
                 onChange={(file) => {
                   if (!file) return;
                   // support multiple files by appending
-                  const prev = (form.values as any).files || [];
+                  const prev = form.values.files || [];
                   form.setFieldValue('files', [...prev, file]);
                 }}
                 accept="image/*,audio/*"
