@@ -81,7 +81,7 @@ export default function ChatWidget() {
     } finally {
       setHasRestoredState(true);
     }
-  }, [conversations, hasRestoredState]);
+  }, [conversations, conversationsQuery.isSuccess, hasRestoredState]);
 
   useEffect(() => {
     try {

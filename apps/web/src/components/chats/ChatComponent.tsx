@@ -1,6 +1,6 @@
 import { Avatar, Badge, Box, Card, Collapse, Divider, Group, Skeleton, Stack, Text, Textarea, ActionIcon } from '@mantine/core';
 import { IconX } from '@tabler/icons-react';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useInfiniteMessages, useSendMessage, useSetTypingStatus, useMarkMessageRead } from '@/hooks/useApi';
 import type { InfiniteMessagesPage, Message } from '@/types';
 
@@ -98,7 +98,7 @@ export default function ChatComponent({
     });
   };
 
-  const markVisibleUnreadMessagesRead = () => {
+  const markVisibleUnreadMessagesRead = useCallback(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
     const containerRect = container.getBoundingClientRect();
@@ -117,7 +117,7 @@ export default function ChatComponent({
         markMessageRead.mutate({ id: message.id });
       }
     });
-  };
+  }, [conversationId, markMessageRead, messages]);
 
   useEffect(() => {
     const el = messagesContainerRef.current;
@@ -135,11 +135,11 @@ export default function ChatComponent({
     return () => {
       el.removeEventListener('scroll', handleScroll);
     };
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage, messages]);
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage, markVisibleUnreadMessagesRead, messages]);
 
   useEffect(() => {
     markVisibleUnreadMessagesRead();
-  }, [messages]);
+  }, [markVisibleUnreadMessagesRead]);
 
   const pageCount = data?.pages?.length ?? 0;
 

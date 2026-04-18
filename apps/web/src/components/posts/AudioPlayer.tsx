@@ -24,7 +24,6 @@ const AudioPlayer: FC<AudioPlayerProps> = ({ src, filename, autoPlay = false, lo
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState<number | null>(null);
   const [progress, setProgress] = useState(0);
 
   const [waveformData, setWaveformData] = useState<number[]>(() => Array(TOTAL_BARS).fill(0.15));
@@ -46,11 +45,11 @@ const AudioPlayer: FC<AudioPlayerProps> = ({ src, filename, autoPlay = false, lo
     if (!el) return;
 
     const onLoaded = () => {
-      setDuration(isFinite(el.duration) ? el.duration : null);
+      // no-op; duration is not stored in component state
     };
     const onTime = () => {
       setCurrentTime(el.currentTime || 0);
-      const d = el.duration || duration || 180;
+      const d = el.duration || 180;
       setProgress(((el.currentTime || 0) / d) * 100);
     };
     const onEnded = () => {
@@ -66,7 +65,6 @@ const AudioPlayer: FC<AudioPlayerProps> = ({ src, filename, autoPlay = false, lo
       el.removeEventListener('timeupdate', onTime);
       el.removeEventListener('ended', onEnded);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src]);
 
   // Setup Web Audio analyser to feed waveformData
@@ -149,7 +147,6 @@ const AudioPlayer: FC<AudioPlayerProps> = ({ src, filename, autoPlay = false, lo
       } catch (_e) { void _e; }
       // do not close AudioContext here to avoid unlock delays on subsequent plays
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src]);
 
   // Play / pause handlers
@@ -263,31 +260,33 @@ const AudioPlayer: FC<AudioPlayerProps> = ({ src, filename, autoPlay = false, lo
                 void _e;
               }
             }, 600);
-          }).catch((err) => {
+          }).catch((err: unknown) => {
             // Chrome may block playback; fallback to showing controls so user can interact
             try {
               el.controls = true;
             } catch (_e) {
               void _e;
             }
-            notifications.show({ title: 'Lecture bloquée', message: err?.message || 'Clique sur le bouton de lecture du lecteur', color: 'red' });
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            notifications.show({ title: 'Lecture bloquée', message: errorMessage || 'Clique sur le bouton de lecture du lecteur', color: 'red' });
             setIsPlaying(false);
           });
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         try {
           el.controls = true;
         } catch (_e) {
           void _e;
         }
-        notifications.show({ title: 'Erreur lecture', message: err?.message || 'Impossible de lancer la lecture', color: 'red' });
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        notifications.show({ title: 'Erreur lecture', message: errorMessage || 'Impossible de lancer la lecture', color: 'red' });
         setIsPlaying(false);
       }
     } else {
       el.pause();
       setIsPlaying(false);
     }
-  }, []);
+  }, [src]);
 
   const handleStop = useCallback(() => {
     const el = audioRef.current;

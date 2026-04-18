@@ -1,5 +1,5 @@
 import { Context } from "./schema";
-import { GraphQLScalarType, Kind } from 'graphql';
+import { GraphQLScalarType, Kind, type ValueNode } from 'graphql';
 import { generateToken } from "./auth";
 import { convertDates, hasRole, sanitizeUserForPublic, requireRole, sanitizePostForPublic, requireAuth } from "./libs/tools";
 import prisma from "./prisma";
@@ -11,8 +11,8 @@ export const resolvers = {
     description: 'Arbitrary JSON value',
     parseValue: (v) => v,
     serialize: (v) => v,
-    parseLiteral: (ast: any) => {
-      const parse = (node: any): any => {
+    parseLiteral: (ast: ValueNode): unknown => {
+      const parse = (node: ValueNode): unknown => {
         switch (node.kind) {
           case Kind.STRING:
           case Kind.BOOLEAN:
@@ -21,7 +21,7 @@ export const resolvers = {
           case Kind.FLOAT:
             return Number(node.value);
           case Kind.OBJECT: {
-            const obj: any = {};
+            const obj: Record<string, unknown> = {};
             for (const field of node.fields) {
               obj[field.name.value] = parse(field.value);
             }
@@ -39,97 +39,98 @@ export const resolvers = {
     },
   }),
   Query: {
-    me: async (_parent: any, _args: any, context: Context) => {
+    me: async (_parent: unknown, _args: unknown, context: Context) => {
       if (!context.user) return null;
       const u = await prisma.user.findUnique({
         where: { id: context.user.userId },
         include: {
-          posts: { orderBy: { createdAt: 'desc' }, where: { deleted: false } as any, include: { author: true, comments: { include: { author: true }, where: { deleted: false } as any }, likes: { include: { user: true } }, attachments: true } },
+          posts: { orderBy: { createdAt: 'desc' }, where: { deleted: false } as unknown, include: { author: true, comments: { include: { author: true }, where: { deleted: false } as unknown }, likes: { include: { user: true } }, attachments: true } },
         },
       });
       return convertDates(u);
     },
 
-    user: async (_parent: any, args: { id: string }, context: Context) => {
+    user: async (_parent: unknown, args: { id: string }, context: Context) => {
       const u = await prisma.user.findUnique({
         where: { id: args.id },
         include: {
-          posts: { orderBy: { createdAt: 'desc' }, where: { deleted: false } as any, include: { author: true, comments: { include: { author: true }, where: { deleted: false } as any }, likes: { include: { user: true } }, attachments: true } },
+          posts: { orderBy: { createdAt: 'desc' }, where: { deleted: false } as unknown, include: { author: true, comments: { include: { author: true }, where: { deleted: false } as unknown }, likes: { include: { user: true } }, attachments: true } },
         },
       });
       if (!u) return null;
       // If the requester is admin or the owner, return full user info (without password)
       if (context.user && (hasRole(context, 'MODERATOR') || hasRole(context, 'ADMIN') || context.user.userId === u.id)) {
-        const { password: _password, ...rest } = u as any;
+        const { password, ...rest } = u as unknown as { password?: string };
+        void password;
         return convertDates(rest);
       }
       // Otherwise return the public projection
       return sanitizeUserForPublic(u, context);
     },
 
-    users: async (_parent: any, _args: any, context: Context) => {
+    users: async (_parent: unknown, _args: unknown, context: Context) => {
       // only moderators and admins can list full users
       requireRole(context, 'MODERATOR');
       const list = await prisma.user.findMany({ orderBy: { createdAt: 'desc' } });
       return list.map(convertDates);
     },
 
-    posts: async (_parent: any, args: { limit?: number; offset?: number }, context: Context) => {
+    posts: async (_parent: unknown, args: { limit?: number; offset?: number }, context: Context) => {
       const posts = await prisma.post.findMany({
-        where: { isPublic: true, deleted: false } as any,
+        where: { isPublic: true, deleted: false } as unknown,
         orderBy: { createdAt: 'desc' },
         take: args.limit ?? 20,
         skip: args.offset ?? 0,
         include: {
           author: true,
-          comments: { include: { author: true }, where: { deleted: false } as any, orderBy: { createdAt: 'desc' } },
+          comments: { include: { author: true }, where: { deleted: false } as unknown, orderBy: { createdAt: 'desc' } },
           likes: { include: { user: true } },
           attachments: true,
         },
       });
       return posts.map((p) => {
         const sanitized = sanitizePostForPublic(p, context) as Record<string, unknown>;
-        const liked = context.user ? (p.likes ?? []).some((l: any) => (l.user?.id ?? l.userId) === context.user!.userId) : false;
+        const liked = context.user ? (p.likes ?? []).some((l: unknown) => (l.user?.id ?? l.userId) === context.user!.userId) : false;
         return { ...sanitized, isLikedByMe: liked };
       });
     },
 
-    post: async (_parent: any, args: { id: string }, context: Context) => {
+    post: async (_parent: unknown, args: { id: string }, context: Context) => {
       const p = await prisma.post.findUnique({
         where: { id: args.id },
         include: {
           author: true,
-          comments: { include: { author: true }, where: { deleted: false } as any, orderBy: { createdAt: 'desc' } },
+          comments: { include: { author: true }, where: { deleted: false } as unknown, orderBy: { createdAt: 'desc' } },
           likes: { include: { user: true } },
           attachments: true,
         },
       });
       if (!p) return null;
       const sanitized = sanitizePostForPublic(p, context) as Record<string, unknown>;
-      const liked = context.user ? (p.likes ?? []).some((l: any) => (l.user?.id ?? l.userId) === context.user!.userId) : false;
+      const liked = context.user ? (p.likes ?? []).some((l: unknown) => (l.user?.id ?? l.userId) === context.user!.userId) : false;
       return { ...sanitized, isLikedByMe: liked };
     },
 
-    myPosts: async (_parent: any, _args: any, context: Context) => {
+    myPosts: async (_parent: unknown, _args: unknown, context: Context) => {
       if (!context.user) throw new Error('Non authentifié');
       const posts = await prisma.post.findMany({
-        where: { authorId: context.user.userId, deleted: false } as any,
+        where: { authorId: context.user.userId, deleted: false } as unknown,
         orderBy: { createdAt: 'desc' },
         include: {
           author: true,
-          comments: { include: { author: true }, where: { deleted: false } as any, orderBy: { createdAt: 'desc' } },
+          comments: { include: { author: true }, where: { deleted: false } as unknown, orderBy: { createdAt: 'desc' } },
           likes: { include: { user: true } },
           attachments: true,
         },
       });
       return posts.map((p) => {
         const sanitized = sanitizePostForPublic(p, context) as Record<string, unknown>;
-        const liked = context.user ? (p.likes ?? []).some((l: any) => (l.user?.id ?? l.userId) === context.user!.userId) : false;
+        const liked = context.user ? (p.likes ?? []).some((l: unknown) => (l.user?.id ?? l.userId) === context.user!.userId) : false;
         return { ...sanitized, isLikedByMe: liked };
       });
     },
 
-    conversations: async (_parent: any, args: { limit?: number; offset?: number }, context: Context) => {
+    conversations: async (_parent: unknown, args: { limit?: number; offset?: number }, context: Context) => {
       requireAuth(context);
       const userId = context.user.userId;
       const messages = await prisma.message.findMany({
@@ -153,7 +154,7 @@ export const resolvers = {
       const seen = new Set<string>();
       const conversations = [] as Array<{
         id: string;
-        partner: any;
+        partner: unknown;
         lastMessage: string;
         lastMessageAt: string;
         unreadCount: number;
@@ -179,7 +180,7 @@ export const resolvers = {
       return conversations.slice(start, start + size);
     },
 
-    messages: async (_parent: any, args: { userId: string }, context: Context) => {
+    messages: async (_parent: unknown, args: { userId: string }, context: Context) => {
       if (!context.user) throw new Error('Non authentifié');
       const msgs = await prisma.message.findMany({
         where: {
@@ -200,7 +201,7 @@ export const resolvers = {
         };
       });
     },
-    messagesPaginated: async (_parent: any, args: { userId: string; limit?: number; offset?: number }, context: Context) => {
+    messagesPaginated: async (_parent: unknown, args: { userId: string; limit?: number; offset?: number }, context: Context) => {
       if (!context.user) throw new Error('Non authentifié');
       const msgs = await prisma.message.findMany({
         where: {
@@ -224,7 +225,7 @@ export const resolvers = {
       });
     },
 
-    notifications: async (_parent: any, args: { limit?: number; offset?: number }, context: Context) => {
+    notifications: async (_parent: unknown, args: { limit?: number; offset?: number }, context: Context) => {
       if (!context.user) throw new Error('Non authentifié');
       const notes = await prisma.notification.findMany({
         where: { userId: context.user.userId },
@@ -234,18 +235,18 @@ export const resolvers = {
         include: { author: true, user: true },
       });
       return notes.map((n) => {
-        const nn = convertDates(n as any) as any;
+        const nn = convertDates(n as unknown) as unknown;
         return {
           ...nn,
-          author: sanitizeUserForPublic((n as any).author, context),
-          user: sanitizeUserForPublic((n as any).user, context),
+          author: sanitizeUserForPublic((n as unknown).author, context),
+          user: sanitizeUserForPublic((n as unknown).user, context),
         };
       });
     },
   },
 
   Mutation: {
-    register: async (_parent: any, args: { email: string; username: string; password: string; firstName?: string; lastName?: string }) => {
+    register: async (_parent: unknown, args: { email: string; username: string; password: string; firstName?: string; lastName?: string }) => {
       const existing = await prisma.user.findFirst({
         where: { OR: [{ email: args.email }, { username: args.username }] },
       });
@@ -268,7 +269,7 @@ export const resolvers = {
       return { token, user: convertDates(user) };
     },
 
-    login: async (_parent: any, args: { identifier: string; password: string }, _context: Context) => {
+    login: async (_parent: unknown, args: { identifier: string; password: string }, _context: Context) => {
       const user = await prisma.user.findFirst({
         where: {
           OR: [{ email: args.identifier }, { username: args.identifier }],
@@ -287,9 +288,9 @@ export const resolvers = {
       return { token, user: convertDates(user) };
     },
 
-    createPost: async (_parent: any, args: { content: string; mood?: string; isPublic?: boolean; attachmentIds?: string[]; payload?: any }, context: Context) => {
+    createPost: async (_parent: unknown, args: { content: string; mood?: string; isPublic?: boolean; attachmentIds?: string[]; payload?: unknown }, context: Context) => {
       if (!context.user) throw new Error('Non authentifié');
-      const data: any = {
+      const data: unknown = {
         content: args.content,
         mood: args.mood,
         isPublic: args.isPublic ?? true,
@@ -316,7 +317,7 @@ export const resolvers = {
       return sanitized;
     },
 
-    deletePost: async (_parent: any, args: { id: string }, context: Context) => {
+    deletePost: async (_parent: unknown, args: { id: string }, context: Context) => {
       requireAuth(context);
       const post = await prisma.post.findUnique({ where: { id: args.id } });
       if (!post) throw new Error('Post introuvable');
@@ -325,16 +326,16 @@ export const resolvers = {
         throw new Error('Non autorisé');
       }
       await prisma.$transaction([
-        prisma.post.update({ where: { id: args.id }, data: { deleted: true } as any } as any),
-        prisma.comment.updateMany({ where: { postId: args.id }, data: { deleted: true } as any } as any),
-      ] as any);
+        prisma.post.update({ where: { id: args.id }, data: { deleted: true } as unknown } as unknown),
+        prisma.comment.updateMany({ where: { postId: args.id }, data: { deleted: true } as unknown } as unknown),
+      ] as unknown);
       return true;
     },
 
-    updatePost: async (_parent: any, args: { id: string; content: string }, context: Context) => {
+    updatePost: async (_parent: unknown, args: { id: string; content: string }, context: Context) => {
       requireAuth(context);
       const post = await prisma.post.findUnique({ where: { id: args.id } });
-      if (!post || (post as any).deleted) throw new Error('Post introuvable');
+      if (!post || (post as unknown).deleted) throw new Error('Post introuvable');
       if (post.authorId !== context.user!.userId && !hasRole(context, 'MODERATOR') && !hasRole(context, 'ADMIN')) {
         throw new Error('Non autorisé');
       }
@@ -343,20 +344,20 @@ export const resolvers = {
         data: { content: args.content },
         include: {
           author: true,
-          comments: { include: { author: true }, where: { deleted: false } as any, orderBy: { createdAt: 'desc' } },
+          comments: { include: { author: true }, where: { deleted: false } as unknown, orderBy: { createdAt: 'desc' } },
           likes: { include: { user: true } },
           attachments: true,
         },
       });
       const sanitized = sanitizePostForPublic(updated, context) as Record<string, unknown>;
-      const liked = context.user ? (updated.likes ?? []).some((l: any) => (l.user?.id ?? l.userId) === context.user!.userId) : false;
+      const liked = context.user ? (updated.likes ?? []).some((l: unknown) => (l.user?.id ?? l.userId) === context.user!.userId) : false;
       return { ...sanitized, isLikedByMe: liked };
     },
 
-    updateComment: async (_parent: any, args: { id: string; content: string }, context: Context) => {
+    updateComment: async (_parent: unknown, args: { id: string; content: string }, context: Context) => {
       requireAuth(context);
       const comment = await prisma.comment.findUnique({ where: { id: args.id } });
-      if (!comment || (comment as any).deleted) throw new Error('Commentaire introuvable');
+      if (!comment || (comment as unknown).deleted) throw new Error('Commentaire introuvable');
       if (comment.authorId !== context.user!.userId && !hasRole(context, 'MODERATOR') && !hasRole(context, 'ADMIN')) {
         throw new Error('Non autorisé');
       }
@@ -368,21 +369,21 @@ export const resolvers = {
       return { ...convertDates(updated), author: sanitizeUserForPublic(updated.author, context) };
     },
 
-    deleteComment: async (_parent: any, args: { id: string }, context: Context) => {
+    deleteComment: async (_parent: unknown, args: { id: string }, context: Context) => {
       requireAuth(context);
       const comment = await prisma.comment.findUnique({ where: { id: args.id } });
-      if (!comment || (comment as any).deleted) throw new Error('Commentaire introuvable');
+      if (!comment || (comment as unknown).deleted) throw new Error('Commentaire introuvable');
       if (comment.authorId !== context.user!.userId && !hasRole(context, 'MODERATOR') && !hasRole(context, 'ADMIN')) {
         throw new Error('Non autorisé');
       }
-      await prisma.comment.update({ where: { id: args.id }, data: { deleted: true } as any } as any);
+      await prisma.comment.update({ where: { id: args.id }, data: { deleted: true } as unknown } as unknown);
       return true;
     },
 
-    createComment: async (_parent: any, args: { postId: string; content: string }, context: Context) => {
+    createComment: async (_parent: unknown, args: { postId: string; content: string }, context: Context) => {
       if (!context.user) throw new Error('Non authentifié');
       const post = await prisma.post.findUnique({ where: { id: args.postId } });
-      if (!post || (post as any).deleted) throw new Error('Post introuvable');
+      if (!post || (post as unknown).deleted) throw new Error('Post introuvable');
       const created = await prisma.comment.create({
         data: {
           content: args.content,
@@ -393,7 +394,7 @@ export const resolvers = {
       });
       // create notification for post author (if not commenting on own post)
       try {
-        const postAuthorId = (created.post as any).authorId as string;
+        const postAuthorId = (created.post as unknown).authorId as string;
         if (postAuthorId && postAuthorId !== context.user.userId) {
           const notification = await prisma.notification.create({
             data: {
@@ -410,11 +411,11 @@ export const resolvers = {
         // ignore notification creation errors
       }
       const c = convertDates(created);
-      const commentPayload = { ...c, author: sanitizeUserForPublic(created.author, context), post: { id: args.postId } } as any;
+      const commentPayload = { ...c, author: sanitizeUserForPublic(created.author, context), post: { id: args.postId } } as unknown;
       try {
         await context.pubsub.publish('comment', commentPayload);
         await context.pubsub.publish(`comment:post:${args.postId}`, commentPayload);
-        const postAuthorId = (created.post as any).authorId as string | undefined;
+        const postAuthorId = (created.post as unknown).authorId as string | undefined;
         if (postAuthorId) {
           await context.pubsub.publish(`comment:user:${postAuthorId}`, commentPayload);
         }
@@ -424,7 +425,7 @@ export const resolvers = {
       return { ...c, author: sanitizeUserForPublic(created.author, context) };
     },
 
-    toggleLike: async (_parent: any, args: { postId: string }, context: Context) => {
+    toggleLike: async (_parent: unknown, args: { postId: string }, context: Context) => {
       if (!context.user) throw new Error('Non authentifié');
       const existing = await prisma.like.findUnique({
         where: {
@@ -438,7 +439,7 @@ export const resolvers = {
         await prisma.like.delete({ where: { id: existing.id } });
         return false;
       }
-      const createdLike = await prisma.like.create({ data: { userId: context.user.userId, postId: args.postId } });
+      await prisma.like.create({ data: { userId: context.user.userId, postId: args.postId } });
       // create notification for post author (if not liking own post)
       try {
         const post = await prisma.post.findUnique({ where: { id: args.postId } });
@@ -460,7 +461,7 @@ export const resolvers = {
       return true;
     },
 
-    sendMessage: async (_parent: any, args: { receiverId: string; content: string }, context: Context) => {
+    sendMessage: async (_parent: unknown, args: { receiverId: string; content: string }, context: Context) => {
       if (!context.user) throw new Error('Non authentifié');
       const created = await prisma.message.create({
         data: {
@@ -481,7 +482,7 @@ export const resolvers = {
       return payload;
     },
 
-    setTypingStatus: async (_parent: any, args: { receiverId: string; isTyping: boolean }, context: Context) => {
+    setTypingStatus: async (_parent: unknown, args: { receiverId: string; isTyping: boolean }, context: Context) => {
       if (!context.user) throw new Error('Non authentifié');
       console.log(`[Subscription] setTypingStatus resolver called for receiver ${args.receiverId} from sender ${context.user.userId} isTyping=${args.isTyping}`);
       const receiver = await prisma.user.findUnique({ where: { id: args.receiverId } });
@@ -500,7 +501,7 @@ export const resolvers = {
       return true;
     },
 
-    markMessageRead: async (_parent: any, args: { id: string }, context: Context) => {
+    markMessageRead: async (_parent: unknown, args: { id: string }, context: Context) => {
       requireAuth(context);
       const message = await prisma.message.findUnique({ where: { id: args.id } });
       if (!message) throw new Error('Message introuvable');
@@ -517,7 +518,7 @@ export const resolvers = {
       return { ...mu, sender: sanitizeUserForPublic(updated.sender, context), receiver: sanitizeUserForPublic(updated.receiver, context) };
     },
 
-    markNotificationRead: async (_parent: any, args: { id: string }, context: Context) => {
+    markNotificationRead: async (_parent: unknown, args: { id: string }, context: Context) => {
       requireAuth(context);
       const note = await prisma.notification.findUnique({ where: { id: args.id } });
       if (!note) throw new Error('Notification introuvable');
@@ -525,11 +526,11 @@ export const resolvers = {
         throw new Error('Non autorisé');
       }
       const updated = await prisma.notification.update({ where: { id: args.id }, data: { read: true }, include: { author: true, user: true } });
-      const nn = convertDates(updated as any) as any;
+      const nn = convertDates(updated as unknown) as unknown;
       return { ...nn, author: sanitizeUserForPublic(updated.author, context), user: sanitizeUserForPublic(updated.user, context) };
     },
 
-    updateProfile: async (_parent: any, args: { firstName?: string; lastName?: string; bio?: string; avatar?: string; userId?: string }, context: Context) => {
+    updateProfile: async (_parent: unknown, args: { firstName?: string; lastName?: string; bio?: string; avatar?: string; userId?: string }, context: Context) => {
       requireAuth(context);
       // allow admin to update any profile by passing userId
       let targetId = context.user!.userId;
@@ -540,17 +541,17 @@ export const resolvers = {
       const u = await prisma.user.update({ where: { id: targetId }, data: { firstName: args.firstName, lastName: args.lastName, bio: args.bio, avatar: args.avatar } });
       return convertDates(u);
     },
-    updateUserRole: async (_parent: any, args: { userId: string; role: string }, context: Context) => {
+    updateUserRole: async (_parent: unknown, args: { userId: string; role: string }, context: Context) => {
       // only admin can change roles
       requireAuth(context);
       if (!hasRole(context, 'ADMIN')) throw new Error('Non autorisé');
       const allowed = ['USER', 'MODERATOR', 'ADMIN'];
       if (!allowed.includes(args.role)) throw new Error('Role invalide');
-      const u = await prisma.user.update({ where: { id: args.userId }, data: { role: args.role as any } });
+      const u = await prisma.user.update({ where: { id: args.userId }, data: { role: args.role as unknown } });
       return convertDates(u);
     },
 
-    deleteUser: async (_parent: any, args: { id: string }, context: Context) => {
+    deleteUser: async (_parent: unknown, args: { id: string }, context: Context) => {
       requireAuth(context);
       if (!hasRole(context, 'ADMIN')) throw new Error('Non autorisé');
       // delete user cascade will remove related content per Prisma schema
@@ -561,34 +562,34 @@ export const resolvers = {
 
   Subscription: {
     notificationReceived: {
-      subscribe: async (_parent: any, args: { userId: string }, context: Context) => {
+      subscribe: async (_parent: unknown, args: { userId: string }, context: Context) => {
         if (!context.user) throw new Error('Non authentifié');
         if (context.user.userId !== args.userId) throw new Error('Non autorisé');
         console.log(`[Subscription] notificationReceived subscribed for user ${args.userId}`);
         return context.pubsub.subscribe(`notification:${args.userId}`);
       },
-      resolve: (payload: any) => payload,
+      resolve: (payload: unknown) => payload,
     },
     messageReceived: {
-      subscribe: async (_parent: any, args: { userId: string }, context: Context) => {
+      subscribe: async (_parent: unknown, args: { userId: string }, context: Context) => {
         if (!context.user) throw new Error('Non authentifié');
         if (context.user.userId !== args.userId) throw new Error('Non autorisé');
         console.log(`[Subscription] messageReceived subscribed for user ${args.userId}`);
         return context.pubsub.subscribe(`message:${args.userId}`);
       },
-      resolve: (payload: any) => payload,
+      resolve: (payload: unknown) => payload,
     },
     typingStatus: {
-      subscribe: async (_parent: any, args: { userId: string }, context: Context) => {
+      subscribe: async (_parent: unknown, args: { userId: string }, context: Context) => {
         if (!context.user) throw new Error('Non authentifié');
         if (context.user.userId !== args.userId) throw new Error('Non autorisé');
         console.log(`[Subscription] typingStatus subscribed for user ${args.userId}`);
         return context.pubsub.subscribe(`typing:${args.userId}`);
       },
-      resolve: (payload: any) => payload,
+      resolve: (payload: unknown) => payload,
     },
     commentCreated: {
-      subscribe: async (_parent: any, args: { postId?: string; userId?: string }, context: Context) => {
+      subscribe: async (_parent: unknown, args: { postId?: string; userId?: string }, context: Context) => {
         if (!context.user) throw new Error('Non authentifié');
         if (args.postId) {
           const post = await prisma.post.findUnique({ where: { id: args.postId }, select: { id: true, isPublic: true, authorId: true } });
@@ -606,10 +607,10 @@ export const resolvers = {
         console.log('[Subscription] commentCreated subscribed globally');
         return context.pubsub.subscribe('comment');
       },
-      resolve: (payload: any) => payload,
+      resolve: (payload: unknown) => payload,
     },
     postCreated: {
-      subscribe: async (_parent: any, args: { userId?: string }, context: Context) => {
+      subscribe: async (_parent: unknown, args: { userId?: string }, context: Context) => {
         if (!context.user) throw new Error('Non authentifié');
         if (args.userId) {
           console.log(`[Subscription] postCreated subscribed for user ${args.userId}`);
@@ -618,7 +619,7 @@ export const resolvers = {
         console.log('[Subscription] postCreated subscribed globally');
         return context.pubsub.subscribe('post');
       },
-      resolve: (payload: any) => payload,
+      resolve: (payload: unknown) => payload,
     },
   },
 

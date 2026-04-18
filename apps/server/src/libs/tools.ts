@@ -53,7 +53,10 @@ export function sanitizePostForPublic(post: Record<string, unknown> | null | und
 
   if (p['comments']) {
     p['comments'] = (p['comments'] as unknown as Array<Record<string, unknown>>)
-      .filter((c) => !(c as any).deleted)
+      .filter((c) => {
+        const cc = c as Record<string, unknown>;
+        return cc['deleted'] !== true;
+      })
       .map((c) => {
         const cc = c as Record<string, unknown>;
         if (!cc['author']) {
@@ -88,25 +91,24 @@ export function sanitizePostForPublic(post: Record<string, unknown> | null | und
   return p;
 }
 
-export function convertDates(obj: any): any {
+export function convertDates<T>(obj: T): T {
   if (!obj || typeof obj !== 'object') return obj;
   // handle Date -> ISO conversion for known fields
-  const out: any = Array.isArray(obj) ? [] : { ...(obj as any) };
-
   if (Array.isArray(obj)) {
-    return (obj as any[]).map(convertDates);
+    return obj.map(convertDates) as unknown as T;
   }
 
+  const out = { ...(obj as Record<string, unknown>) } as Record<string, unknown>;
   for (const key of Object.keys(out)) {
     const val = out[key];
     if (val instanceof Date) {
       out[key] = val.toISOString();
     } else if (Array.isArray(val)) {
-      out[key] = (val as any[]).map(convertDates);
+      out[key] = convertDates(val) as unknown;
     } else if (val && typeof val === 'object') {
-      out[key] = convertDates(val as any);
+      out[key] = convertDates(val as unknown) as unknown;
     }
   }
 
-  return out;
+  return out as T;
 }

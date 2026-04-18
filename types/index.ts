@@ -37,7 +37,7 @@ export interface Post {
   content: string;
   mood?: string | null;
   isPublic?: boolean;
-  payload?: Record<string, any> | null;
+  payload?: Record<string, unknown> | null;
   createdAt: string;
   likesCount: number;
   commentsCount: number;
@@ -50,7 +50,7 @@ export interface Post {
 
 export interface AttachmentData {
   waveform?: number[] | null;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface Like {

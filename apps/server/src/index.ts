@@ -19,6 +19,16 @@ import { spawn } from 'child_process';
 
 const app = express();
 
+type YogaRequest = {
+  headers?: Record<string, unknown> | { get?: (name: string) => string | null };
+  connectionParams?: Record<string, unknown>;
+};
+
+type UploadRequest = express.Request & {
+  file?: Express.Multer.File;
+  files?: Express.Multer.File[];
+};
+
 const pubsub = createPubSub();
 
 app.use(cors({
@@ -36,13 +46,14 @@ const yoga = createYoga<Context>({
   },
   context: async ({ request }) => {
     let authHeader: string | undefined | null = null;
-    if (request?.headers?.get) {
-      authHeader = request.headers.get('authorization');
-    } else if (request?.headers) {
-      authHeader = (request.headers as any).authorization || (request.headers as any).Authorization;
+    const requestLike = request as YogaRequest;
+    if (requestLike.headers && 'get' in requestLike.headers && typeof requestLike.headers.get === 'function') {
+      authHeader = requestLike.headers.get('authorization');
+    } else if (requestLike.headers) {
+      authHeader = String(requestLike.headers['authorization'] ?? requestLike.headers['Authorization'] ?? '') || null;
     }
-    if (!authHeader && (request as any).connectionParams) {
-      authHeader = (request as any).connectionParams.authorization || (request as any).connectionParams.Authorization;
+    if (!authHeader && requestLike.connectionParams) {
+      authHeader = String(requestLike.connectionParams['authorization'] ?? requestLike.connectionParams['Authorization'] ?? '') || null;
     }
 
     let user = null;
@@ -117,12 +128,12 @@ async function getAuthUserFromReq(req: express.Request) {
 
 // multer storage for avatars
 const avatarStorage = multer.diskStorage({
-  destination: (req: any, file: any, cb: any) => {
+  destination: (req: UploadRequest, file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => {
     const dir = path.join(uploadsRoot, 'avatars');
     fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
-  filename: (req: any, file: any, cb: any) => {
+  filename: (req: UploadRequest, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => {
     const safe = `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
     cb(null, safe);
   },
@@ -132,10 +143,10 @@ const avatarStorage = multer.diskStorage({
 const ALLOWED_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2 MB
 
-function avatarFileFilter(req: any, file: any, cb: any) {
+function avatarFileFilter(req: UploadRequest, file: Express.Multer.File, cb: (error: Error | null, acceptFile: boolean) => void) {
   if (!ALLOWED_MIMES.includes(file.mimetype)) {
-    const err: any = new Error('Invalid file type');
-    err.code = 'INVALID_MIME_TYPE';
+    const err = new Error('Invalid file type');
+    (err as { code?: string }).code = 'INVALID_MIME_TYPE';
     return cb(err, false);
   }
   cb(null, true);
@@ -149,7 +160,7 @@ const avatarUpload = multer({
 
 // upload avatar endpoint with explicit error handling
 app.post('/upload/avatar', (req, res) => {
-  avatarUpload.single('avatar')(req as any, res as any, (err: any) => {
+  avatarUpload.single('avatar')(req as UploadRequest, res, (err: Error & { code?: string } | null) => {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
         return res.status(400).json({ error: 'File too large. Max 2MB allowed.' });
@@ -160,7 +171,7 @@ app.post('/upload/avatar', (req, res) => {
       return res.status(500).json({ error: 'Upload error' });
     }
 
-    const file = (req as any).file;
+    const file = (req as UploadRequest).file;
     if (!file) return res.status(400).json({ error: 'No file uploaded' });
     const url = `/uploads/avatars/${file.filename}`;
     res.json({ url });
@@ -174,17 +185,17 @@ const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024; // 10 MB
 const attachmentsUpload = multer({ storage: attachmentsStorage, limits: { fileSize: MAX_ATTACHMENT_SIZE } });
 
 app.post('/upload/attachments', (req, res) => {
-  attachmentsUpload.array('files')(req as any, res as any, async (err: any) => {
+  attachmentsUpload.array('files')(req as UploadRequest, res, async (err: Error & { code?: string } | null) => {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: 'File too large. Max 10MB.' });
       return res.status(500).json({ error: 'Upload error' });
     }
 
-    const files = (req as any).files as Array<any> | undefined;
+    const files = (req as UploadRequest).files;
     if (!files || files.length === 0) return res.status(400).json({ error: 'No files uploaded' });
 
     try {
-      const results: any[] = [];
+      const results: Array<Record<string, unknown>> = [];
       for (const file of files) {
         if (!ATTACHMENTS_MIMES.includes(file.mimetype)) {
           results.push({ error: 'invalid_mime', originalName: file.originalname });
@@ -208,7 +219,16 @@ app.post('/upload/attachments', (req, res) => {
         const outPath = path.join(dir, safe);
         fs.writeFileSync(outPath, buffer);
 
-        const db = await prisma.attachment.create({ data: { filename: file.originalname, path: `/uploads/attachments/${safe}`, mimeType: file.mimetype, checksum: hash, size, data: {} } as any });
+        let attachment = await prisma.attachment.create({
+          data: {
+            filename: file.originalname,
+            path: `/uploads/attachments/${safe}`,
+            mimeType: file.mimetype,
+            checksum: hash,
+            size,
+            data: {},
+          },
+        });
 
         // If audio file, try to extract waveform using ffmpeg (exports PCM s16le to stdout)
         if (file.mimetype && file.mimetype.startsWith('audio/')) {
@@ -251,8 +271,8 @@ app.post('/upload/attachments', (req, res) => {
             });
 
             if (waveform && waveform.length > 0) {
-              await prisma.attachment.update({ where: { id: db.id }, data: { data: { waveform } } as any });
-              (db as any).data = { waveform };
+              await prisma.attachment.update({ where: { id: attachment.id }, data: { data: { waveform } } });
+              attachment = { ...attachment, data: { waveform } };
             }
           } catch {
             // fallback: approximate waveform from raw bytes if ffmpeg isn't available
@@ -272,8 +292,8 @@ app.post('/upload/attachments', (req, res) => {
                 const rms = Math.sqrt(sum / (end - start)) / 128;
                 wf.push(Number(rms.toFixed(4)));
               }
-              await prisma.attachment.update({ where: { id: db.id }, data: { data: { waveform: wf } } as any });
-              (db as any).data = { waveform: wf };
+              await prisma.attachment.update({ where: { id: attachment.id }, data: { data: { waveform: wf } } });
+              attachment = { ...attachment, data: { waveform: wf } };
             } catch (err) {
               // ignore waveform extraction errors
               console.warn('waveform extraction failed', err);
@@ -281,7 +301,7 @@ app.post('/upload/attachments', (req, res) => {
           }
         }
 
-        results.push({ existing: false, attachment: db });
+        results.push({ existing: false, attachment });
       }
 
       return res.json({ attachments: results.map((r) => r.attachment) });
@@ -387,12 +407,12 @@ app.get('/api/v1/users/:id', async (req, res) => {
     const dbUser = await prisma.user.findUnique({ where: { id: String(req.params.id) }, include: { posts: { orderBy: { createdAt: 'desc' } } } });
     if (!dbUser) return res.status(404).json({ error: 'User not found', code: 'NOT_FOUND' });
     // build minimal public projection
-    const publicUser: any = {
+    const publicUser = {
       id: dbUser.id,
       username: dbUser.username,
       avatar: dbUser.avatar || null,
       createdAt: dbUser.createdAt.toISOString(),
-      posts: (dbUser.posts || []).filter((p: any) => p.isPublic !== false).map((p: any) => ({ id: p.id, content: p.content, createdAt: p.createdAt.toISOString(), isPublic: p.isPublic })),
+      posts: (dbUser.posts || []).filter((p) => p.isPublic !== false).map((p) => ({ id: p.id, content: p.content, createdAt: p.createdAt.toISOString(), isPublic: p.isPublic })),
     };
     return res.json(publicUser);
   } catch (e) {
@@ -411,7 +431,8 @@ app.get('/api/v1/admin/users/:id', async (req, res) => {
     const dbUser = await prisma.user.findUnique({ where: { id: String(req.params.id) } });
     if (!dbUser) return res.status(404).json({ error: 'User not found', code: 'NOT_FOUND' });
     // return full user (do not include password)
-    const { password: _password, ...rest } = dbUser as any;
+    const { password, ...rest } = dbUser;
+    void password;
     const out = { ...rest, createdAt: rest.createdAt instanceof Date ? rest.createdAt.toISOString() : rest.createdAt };
     return res.json(out);
   } catch (e) {

@@ -622,7 +622,7 @@ export function useMessages(userId?: string) {
 }
 
 export function useInfiniteMessages(userId?: string, limit = 50) {
-  return useInfiniteQuery<InfiniteMessagesPage, Error, PaginatedMessagesData, ['messages', string | undefined, 'infinite']>({
+  return useInfiniteQuery<InfiniteMessagesPage, Error, InfiniteMessagesData, ['messages', string | undefined, 'infinite']>({
     queryKey: ['messages', userId, 'infinite'],
     enabled: !!userId,
     queryFn: async ({ pageParam = 0 }) => {
