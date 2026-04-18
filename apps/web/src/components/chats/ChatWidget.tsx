@@ -4,12 +4,18 @@ import { useAuth } from '@/contexts/AuthContext';
 import ChatComponent from './ChatComponent';
 import ChatListComponent from './ChatListComponent';
 import { useChatSubscriptions, useConversations } from '@/hooks/useApi';
+import type { Attachment } from '@/types';
+
+type LastPreviewMessage = {
+  content: string;
+  attachments?: Attachment[] | null;
+};
 
 type OpenConversation = {
   id: string;
   username: string;
   avatar: string;
-  lastMessage: string;
+  lastMessage: LastPreviewMessage;
   lastMessageAt?: string;
   unreadCount?: number;
   collapsed?: boolean;

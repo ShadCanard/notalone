@@ -1,12 +1,14 @@
 import { Badge, Card, Collapse, Group, Text, Divider, UnstyledButton } from '@mantine/core';
 import { IconArrowBarToLeft, IconArrowBarToRight, IconMessages } from '@tabler/icons-react';
 import ChatPreviewComponent from './ChatPreviewComponent';
+import type { Attachment } from '@/types';
+import ChatListPreviewComponent from './ChatListPreviewComponent';
 
 type Conversation = {
   id: string;
   username: string;
   avatar: string;
-  lastMessage: string;
+  lastMessage: { content: string; attachments?: Attachment[] | null };
   lastMessageAt?: string;
   unreadCount?: number;
 };
@@ -88,7 +90,7 @@ export default function ChatListComponent({
         <Divider my="sm" />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {conversations.map((conversation) => (
-            <ChatPreviewComponent
+            <ChatListPreviewComponent
               key={conversation.id}
               avatar={conversation.avatar}
               username={conversation.username}

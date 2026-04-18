@@ -83,6 +83,7 @@ model Like {
 model Message {
   id        String   @id @default(uuid())
   content   String
+  payload   Json?
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
 
@@ -90,6 +91,7 @@ model Message {
   sender     User   @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
   receiverId String
   receiver   User   @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  attachments Attachment[] @relation("MessageAttachments")
 }
 
 model Attachment {
@@ -102,7 +104,8 @@ model Attachment {
   size      Int
   createdAt DateTime @default(now())
 
-  posts Post[]
+  posts    Post[]
+  messages Message[] @relation("MessageAttachments")
 
   @@index([checksum, size])
 }

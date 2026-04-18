@@ -59,10 +59,17 @@ export const typeDefs = /* GraphQL */ `
     type Message {
       id: ID!
       content: String!
+      payload: JSON
       read: Boolean!
       createdAt: String!
       sender: User!
       receiver: User!
+      attachments: [Attachment!]!
+    }
+
+    type MessagePreview {
+      content: String!
+      attachments: [Attachment!]!
     }
 
     type TypingStatus {
@@ -74,7 +81,7 @@ export const typeDefs = /* GraphQL */ `
     type Conversation {
       id: ID!
       partner: User!
-      lastMessage: String!
+      lastMessage: MessagePreview!
       lastMessageAt: String!
       unreadCount: Int!
     }
@@ -131,7 +138,7 @@ export const typeDefs = /* GraphQL */ `
       updateComment(id: ID!, content: String!): Comment!
       deleteComment(id: ID!): Boolean!
       toggleLike(postId: ID!): Boolean!
-      sendMessage(receiverId: ID!, content: String!): Message!
+      sendMessage(receiverId: ID!, content: String!, attachmentIds: [ID!], payload: JSON): Message!
       markMessageRead(id: ID!): Message!
       setTypingStatus(receiverId: ID!, isTyping: Boolean!): Boolean!
       markNotificationRead(id: ID!): Notification!

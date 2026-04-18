@@ -63,7 +63,7 @@ export default function PublicProfilePage() {
                             id: user.id,
                             username: user.username,
                             avatar,
-                            lastMessage: '',
+                            lastMessage: { content: '', attachments: [] },
                             lastMessageAt: new Date().toISOString(),
                             unreadCount: 0,
                           },

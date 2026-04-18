@@ -16,9 +16,12 @@ export interface User {
 export interface Comment {
   id: string;
   content: string;
+  payload?: Record<string, unknown> | null;
+  read: boolean;
   createdAt: string;
-  author: User;
-  post?: Post;
+  sender: User;
+  receiver: User;
+  attachments?: Attachment[];
 }
 
 export interface Attachment {
@@ -67,6 +70,8 @@ export interface Message {
   createdAt: string;
   sender: User;
   receiver: User;
+  attachments?: Attachment[];
+  payload?: Record<string, unknown> | null;
 }
 
 export interface TypingStatus {
@@ -78,7 +83,10 @@ export interface TypingStatus {
 export interface Conversation {
   id: string;
   partner: User;
-  lastMessage: string;
+  lastMessage: {
+    content: string;
+    attachments?: Attachment[] | null;
+  };
   lastMessageAt: string;
   unreadCount: number;
 }

@@ -141,7 +141,7 @@ export const resolvers = {
           ],
         },
         orderBy: { createdAt: 'desc' },
-        include: { sender: true, receiver: true },
+        include: { sender: true, receiver: true, attachments: true },
       });
 
       const unreadByPartner = new Map<string, number>();
@@ -155,7 +155,7 @@ export const resolvers = {
       const conversations = [] as Array<{
         id: string;
         partner: unknown;
-        lastMessage: string;
+        lastMessage: { content: string; attachments: unknown[] };
         lastMessageAt: string;
         unreadCount: number;
       }>;
@@ -169,7 +169,10 @@ export const resolvers = {
         conversations.push({
           id: partnerId,
           partner: sanitizeUserForPublic(partner, context),
-          lastMessage: message.content,
+          lastMessage: {
+            content: message.content,
+            attachments: message.attachments ?? [],
+          },
           lastMessageAt: message.createdAt.toISOString(),
           unreadCount: unreadByPartner.get(partnerId) ?? 0,
         });
@@ -190,7 +193,7 @@ export const resolvers = {
           ],
         },
         orderBy: { createdAt: 'asc' },
-        include: { sender: true, receiver: true },
+        include: { sender: true, receiver: true, attachments: true },
       });
       return msgs.map((m) => {
         const mm = convertDates({ ...m });
@@ -213,7 +216,7 @@ export const resolvers = {
         orderBy: { createdAt: 'desc' },
         take: args.limit ?? 50,
         skip: args.offset ?? 0,
-        include: { sender: true, receiver: true },
+        include: { sender: true, receiver: true, attachments: true },
       });
       return msgs.map((m) => {
         const mm = convertDates({ ...m });
@@ -461,15 +464,22 @@ export const resolvers = {
       return true;
     },
 
-    sendMessage: async (_parent: unknown, args: { receiverId: string; content: string }, context: Context) => {
+    sendMessage: async (_parent: unknown, args: { receiverId: string; content: string; attachmentIds?: string[]; payload?: unknown }, context: Context) => {
       if (!context.user) throw new Error('Non authentifié');
+      const data: unknown = {
+        content: args.content,
+        senderId: context.user.userId,
+        receiverId: args.receiverId,
+      };
+      if (args.attachmentIds && args.attachmentIds.length > 0) {
+        data.attachments = { connect: args.attachmentIds.map((id: string) => ({ id })) };
+      }
+      if (args.payload !== undefined) {
+        data.payload = args.payload;
+      }
       const created = await prisma.message.create({
-        data: {
-          content: args.content,
-          senderId: context.user.userId,
-          receiverId: args.receiverId,
-        },
-        include: { sender: true, receiver: true },
+        data,
+        include: { sender: true, receiver: true, attachments: true },
       });
       const m = convertDates(created);
       const payload = { ...m, sender: sanitizeUserForPublic(created.sender, context), receiver: sanitizeUserForPublic(created.receiver, context) };

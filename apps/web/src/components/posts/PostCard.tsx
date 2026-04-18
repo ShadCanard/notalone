@@ -1,4 +1,4 @@
-import { Card, Group, Text, Avatar, ActionIcon, Stack, Badge, Menu, Textarea, Button } from '@mantine/core';
+import { Card, Group, Text, Avatar, ActionIcon, Badge, Menu, Textarea, Button } from '@mantine/core';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { IconHeart, IconHeartFilled, IconMessageCircle, IconDotsVertical, IconPencil, IconTrash, IconFlag } from '@tabler/icons-react';
@@ -6,14 +6,12 @@ import { useToggleLike, useUpdatePost } from '@/hooks/useApi';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect } from 'react';
 import { notifications } from '@mantine/notifications';
-import { getUploadUrl } from '@/lib/uploads';
-import ViewImageModal from '@/components/posts/ViewImageModal';
-import AudioPlayer from '@/components/posts/AudioPlayer';
-import OGPreviewPostComponent from '@/components/posts/OGPreviewPostComponent';
+import PostPreview from '@/components/posts/PostPreview';
 import DeletePostModal from '@/components/posts/DeletePostModal';
 import CommentComponent from '@/components/comments/CommentComponent';
 import { Post } from '@/types';
 import { getTimeAgo, parseDate } from '@/lib/tools';
+import getUploadUrl from '@/lib/uploads';
 
 interface PostCardProps {
   post: Post;
@@ -45,11 +43,11 @@ export default function PostCard({ post, preview }: PostCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState(post.content);
   const [content, setContent] = useState(post.content);
-
+  
   useEffect(() => {
     setEditedContent(post.content);
     setContent(post.content);
-  }, [post.content]);
+  }, [post.content, setEditedContent, setContent]);
 
   const handleLike = () => {
     if (!isAuthenticated) {
@@ -110,15 +108,6 @@ export default function PostCard({ post, preview }: PostCardProps) {
     : post.author.username;
 
   const timeAgo = getTimeAgo(parseDate(post.createdAt));
-
-  const [imageModalOpen, setImageModalOpen] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-
-  const linkedPreviewUrl = typeof post.payload?.linkedUrl === 'string' && post.payload.linkedUrl.trim() ? String(post.payload.linkedUrl) : null;
-  const linkedPreviewImage = typeof post.payload?.linkedImage === 'string' && post.payload.linkedImage.trim() ? String(post.payload.linkedImage) : null;
-  const linkedPreviewTitle = typeof post.payload?.linkedTitle === 'string' && post.payload.linkedTitle.trim() ? String(post.payload.linkedTitle) : linkedPreviewUrl;
-  const linkedPreviewDescription = typeof post.payload?.linkedDescription === 'string' ? String(post.payload.linkedDescription) : null;
-  const linkedPreviewSiteName = typeof post.payload?.linkedSiteName === 'string' && post.payload.linkedSiteName.trim() ? String(post.payload.linkedSiteName) : null;
 
   return (
     <Card shadow="sm" padding="lg" radius="lg" withBorder style={{ borderColor: '#EAF7FF' }}>
@@ -214,46 +203,7 @@ export default function PostCard({ post, preview }: PostCardProps) {
         </Text>
       )}
 
-      {linkedPreviewUrl ? (
-        <OGPreviewPostComponent
-          url={linkedPreviewUrl}
-          fallbackTitle={linkedPreviewTitle}
-          fallbackDescription={linkedPreviewDescription || undefined}
-          fallbackImage={linkedPreviewImage || undefined}
-          fallbackSiteName={linkedPreviewSiteName || undefined}
-        />
-      ) : null}
-
-      {post.attachments && post.attachments.length > 0 && (
-        <Stack gap="xs" mb="md">
-          {post.attachments.map((a) => (
-            <div key={a.id}>
-              {a.mimeType?.startsWith('image/') ? (
-                <img
-                  src={getUploadUrl(a.path)}
-                  alt={a.filename}
-                  style={{ maxWidth: '100%', borderRadius: 8, cursor: 'pointer' }}
-                  onClick={() => {
-                    setSelectedImage(a.path);
-                    setImageModalOpen(true);
-                  }}
-                />
-              ) : a.mimeType?.startsWith('audio/') ? (
-                <AudioPlayer src={a.path} filename={a.filename} />
-              ) : (
-                <a href={getUploadUrl(a.path)} target="_blank" rel="noreferrer">{a.filename}</a>
-              )}
-            </div>
-          ))}
-        </Stack>
-      )}
-
-      <ViewImageModal
-        opened={imageModalOpen}
-        onClose={() => setImageModalOpen(false)}
-        imageSrc={selectedImage || ''}
-        post={post}
-      />
+      <PostPreview post={post} />
 
       <Group justify="space-between">
         <Group gap="lg">

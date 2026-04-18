@@ -3,12 +3,11 @@ import { useMemo, useState } from 'react';
 import { getUploadUrl } from '@/lib/uploads';
 import AudioPlayer from '@/components/posts/AudioPlayer';
 import OGPreviewPostComponent from '@/components/posts/OGPreviewPostComponent';
-import type { Attachment } from '@/types';
-import ChatImageModal from './ChatImageModal';
+import type { Post } from '@/types';
+import ViewImageModal from './ViewImageModal';
 
-interface ChatPreviewComponentProps {
-  attachments?: Attachment[] | null;
-  payload?: Record<string, unknown> | null;
+interface PostPreviewProps {
+  post?: Post;
 }
 
 function getPayloadString(payload: Record<string, unknown> | null | undefined, key: string) {
@@ -18,17 +17,17 @@ function getPayloadString(payload: Record<string, unknown> | null | undefined, k
   return trimmed.length ? trimmed : null;
 }
 
-export default function ChatPreviewComponent({ attachments, payload }: ChatPreviewComponentProps) {
+export default function PostPreview({ post }: PostPreviewProps) {
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
-  const linkedPreviewUrl = getPayloadString(payload, 'linkedUrl');
-  const linkedPreviewImage = getPayloadString(payload, 'linkedImage');
-  const linkedPreviewTitle = getPayloadString(payload, 'linkedTitle') || linkedPreviewUrl;
-  const linkedPreviewDescription = getPayloadString(payload, 'linkedDescription');
-  const linkedPreviewSiteName = getPayloadString(payload, 'linkedSiteName');
+  const linkedPreviewUrl = getPayloadString(post?.payload, 'linkedUrl');
+  const linkedPreviewImage = getPayloadString(post?.payload, 'linkedImage');
+  const linkedPreviewTitle = getPayloadString(post?.payload, 'linkedTitle') || linkedPreviewUrl;
+  const linkedPreviewDescription = getPayloadString(post?.payload, 'linkedDescription');
+  const linkedPreviewSiteName = getPayloadString(post?.payload, 'linkedSiteName');
 
-  const attachmentItems = useMemo(() => attachments ?? [], [attachments]);
+  const attachmentItems = useMemo(() => post?.attachments ?? [], [post?.attachments]);
 
   const hasPreview = Boolean(linkedPreviewUrl || attachmentItems.length > 0);
   if (!hasPreview) return null;
@@ -80,7 +79,8 @@ export default function ChatPreviewComponent({ attachments, payload }: ChatPrevi
           })}
         </Stack>
       ) : null}
-      <ChatImageModal opened={imageModalOpen} onClose={() => setImageModalOpen(false)} imageUrl={getUploadUrl(selectedImage as string) || ''} />
+
+      <ViewImageModal opened={imageModalOpen} onClose={() => setImageModalOpen(false)} imageSrc={selectedImage as string} post={post} />
     </>
   );
 }

@@ -258,10 +258,12 @@ const MESSAGES_QUERY = gql`
     messages(userId: $userId) {
       id
       content
+      payload
       read
       createdAt
       sender { id username avatar }
       receiver { id username avatar }
+      attachments { id filename path mimeType size createdAt data }
     }
   }
 `;
@@ -271,10 +273,12 @@ const MESSAGES_PAGINATED_QUERY = gql`
     messagesPaginated(userId: $userId, limit: $limit, offset: $offset) {
       id
       content
+      payload
       read
       createdAt
       sender { id username avatar }
       receiver { id username avatar }
+      attachments { id filename path mimeType size createdAt data }
     }
   }
 `;
@@ -283,7 +287,19 @@ const CONVERSATIONS_QUERY = gql`
   query Conversations($limit: Int, $offset: Int) {
     conversations(limit: $limit, offset: $offset) {
       id
-      lastMessage
+      lastMessage {
+        content
+        attachments {
+          id
+          filename
+          path
+          mimeType
+          checksum
+          size
+          createdAt
+          data
+        }
+      }
       lastMessageAt
       unreadCount
       partner {
@@ -327,10 +343,12 @@ const MESSAGE_RECEIVED_SUBSCRIPTION = gql`
     messageReceived(userId: $userId) {
       id
       content
+      payload
       read
       createdAt
       sender { id username avatar }
       receiver { id username avatar }
+      attachments { id filename path mimeType size createdAt data }
     }
   }
 `;
@@ -385,13 +403,16 @@ const MARK_NOTIFICATION_READ_MUTATION = gql`
 `;
 
 const SEND_MESSAGE_MUTATION = gql`
-  mutation SendMessage($receiverId: ID!, $content: String!) {
-    sendMessage(receiverId: $receiverId, content: $content) {
+  mutation SendMessage($receiverId: ID!, $content: String!, $attachmentIds: [ID!], $payload: JSON) {
+    sendMessage(receiverId: $receiverId, content: $content, attachmentIds: $attachmentIds, payload: $payload) {
       id
       content
+      payload
+      read
       createdAt
       sender { id username avatar }
       receiver { id username avatar }
+      attachments { id filename path mimeType size createdAt data }
     }
   }
 `;
@@ -749,7 +770,10 @@ export function useChatSubscriptions(userId?: string, token?: string | null, onT
               if (conversation.id !== sender.id) return conversation;
               return {
                 ...conversation,
-                lastMessage: payload.content,
+                lastMessage: {
+                  content: payload.content,
+                  attachments: payload.attachments ?? [],
+                },
                 lastMessageAt: payload.createdAt,
                 unreadCount:
                   sender.id === userId
@@ -765,7 +789,10 @@ export function useChatSubscriptions(userId?: string, token?: string | null, onT
             const newConversation = {
               id: sender.id,
               partner: sender,
-              lastMessage: payload.content,
+              lastMessage: {
+                content: payload.content,
+                attachments: payload.attachments ?? [],
+              },
               lastMessageAt: payload.createdAt,
               unreadCount: sender.id === userId ? 0 : 1,
             };
@@ -1009,7 +1036,8 @@ export function useMarkNotificationRead() {
 export function useSendMessage() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (variables: { receiverId: string; content: string }) => graphqlClient.request<{ sendMessage: Message }>(SEND_MESSAGE_MUTATION, variables),
+    mutationFn: (variables: { receiverId: string; content: string; attachmentIds?: string[]; payload?: Record<string, unknown> }) =>
+      graphqlClient.request<{ sendMessage: Message }>(SEND_MESSAGE_MUTATION, variables),
     onSuccess: (_data, _vars) => {
       queryClient.invalidateQueries({ queryKey: ['messages', _vars.receiverId] });
       queryClient.invalidateQueries({ queryKey: ['conversations'] });

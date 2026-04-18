@@ -1,7 +1,9 @@
-import { Avatar, Badge, Box, Card, Collapse, Divider, Group, Skeleton, Stack, Text, Textarea, ActionIcon } from '@mantine/core';
+import { Avatar, Badge, Box, Card, Collapse, Divider, Group, Skeleton, Stack, Text, ActionIcon } from '@mantine/core';
 import { IconX } from '@tabler/icons-react';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useInfiniteMessages, useSendMessage, useSetTypingStatus, useMarkMessageRead } from '@/hooks/useApi';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useInfiniteMessages, useMarkMessageRead } from '@/hooks/useApi';
+import ChatMessageComponent from '@/components/chats/ChatMessageComponent';
+import CreateChatMessageForm from '@/components/chats/CreateChatMessageForm';
 import type { InfiniteMessagesPage, Message } from '@/types';
 
 type ChatComponentProps = {
@@ -23,7 +25,6 @@ export default function ChatComponent({
   onClose,
   isTyping = false,
 }: ChatComponentProps) {
-  const [reply, setReply] = useState('');
   const {
     data,
     isLoading,
@@ -31,12 +32,7 @@ export default function ChatComponent({
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteMessages(conversationId, 50);
-  const sendMessage = useSendMessage();
-  const setTypingStatus = useSetTypingStatus();
   const markMessageRead = useMarkMessageRead();
-  const setTypingStatusRef = useRef(setTypingStatus);
-  const stopTypingTimer = useRef<number | null>(null);
-  const isTypingLocalRef = useRef(false);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const isScrolledToBottomRef = useRef(true);
   const hasScrolledToBottomRef = useRef(false);
@@ -44,10 +40,6 @@ export default function ChatComponent({
   const previousScrollHeightRef = useRef<number | null>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const alreadyMarkedReadRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    setTypingStatusRef.current = setTypingStatus;
-  }, [setTypingStatus]);
 
   const messages = useMemo<Message[]>(() => {
     const pages = (data?.pages ?? []) as InfiniteMessagesPage[];
@@ -58,35 +50,6 @@ export default function ChatComponent({
       .flatMap((page) => (Array.isArray(page?.messages) ? [...page.messages].reverse() : []));
   }, [data]);
   const unreadCount = messages.filter((message: Message) => message.receiver.id !== conversationId && !message.read).length;
-
-
-  const sendTypingStatus = async (isTyping: boolean) => {
-    try {
-      await setTypingStatusRef.current.mutateAsync({ receiverId: conversationId, isTyping });
-    } catch (error) {
-      console.error('[Chat] failed to update typing status', { conversationId, isTyping }, error);
-    }
-  };
-
-  const resetTypingTimeout = () => {
-    if (stopTypingTimer.current) {
-      window.clearTimeout(stopTypingTimer.current);
-    }
-    stopTypingTimer.current = window.setTimeout(async () => {
-      if (isTypingLocalRef.current) {
-        await sendTypingStatus(false);
-        isTypingLocalRef.current = false;
-      }
-      stopTypingTimer.current = null;
-    }, 3000);
-  };
-
-  const formatMessageTime = (iso: string) => {
-    const date = new Date(iso);
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    return `${hours}:${minutes}`;
-  };
 
   const formatMessageDate = (iso: string) => {
     const date = new Date(iso);
@@ -174,46 +137,6 @@ export default function ChatComponent({
     }
   }, [messages.length, isTyping, collapsed]);
 
-  const handleTyping = () => {
-    if (!isTypingLocalRef.current) {
-      isTypingLocalRef.current = true;
-      void sendTypingStatus(true);
-    }
-    resetTypingTimeout();
-  };
-
-  const handleSend = async () => {
-    const trimmed = reply.trim();
-    if (!trimmed) return;
-
-    try {
-      await sendMessage.mutateAsync({ receiverId: conversationId, content: trimmed });
-      setReply('');
-      if (stopTypingTimer.current) {
-        window.clearTimeout(stopTypingTimer.current);
-        stopTypingTimer.current = null;
-      }
-      if (isTypingLocalRef.current) {
-        await sendTypingStatus(false);
-        isTypingLocalRef.current = false;
-      }
-    } catch {
-      // ignore send failures for now
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      if (stopTypingTimer.current) {
-        window.clearTimeout(stopTypingTimer.current);
-      }
-      if (isTypingLocalRef.current) {
-        void setTypingStatusRef.current.mutateAsync({ receiverId: conversationId, isTyping: false });
-        isTypingLocalRef.current = false;
-      }
-    };
-  }, [conversationId]);
-
   return (
     <Card radius="xl" withBorder style={{ width: 320 }}>
       <Group
@@ -300,8 +223,6 @@ export default function ChatComponent({
                 {(() => {
                   let lastMessageDate = '';
                   return messages.map((message) => {
-                    const isMine = message.sender.id !== conversationId;
-                    const timeLabel = formatMessageTime(message.createdAt);
                     const messageDate = new Date(message.createdAt).toLocaleDateString('fr-FR');
                     const showDateHeader = messageDate !== lastMessageDate;
                     if (showDateHeader) {
@@ -317,41 +238,13 @@ export default function ChatComponent({
                             </Text>
                           </Box>
                         ) : null}
-                        <Group
-                          style={{
-                            justifyContent: isMine ? 'flex-end' : 'flex-start',
-                            alignItems: 'center',
-                            gap: 8,
+                        <ChatMessageComponent
+                          message={message}
+                          conversationId={conversationId}
+                          messageRef={(el) => {
+                            messageRefs.current[message.id] = el;
                           }}
-                        >
-                          {isMine ? (
-                            <Text size="xs" c="dimmed" style={{ minWidth: 40, textAlign: 'right' }}>
-                              {timeLabel}
-                            </Text>
-                          ) : null}
-                          <Box
-                            ref={(el) => {
-                              messageRefs.current[message.id] = el;
-                            }}
-                            style={{
-                              background: isMine ? '#d6f0ff' : '#f1f3f5',
-                              color: '#102a43',
-                              padding: '10px 14px',
-                              borderRadius: '18px',
-                              maxWidth: '80%',
-                              wordBreak: 'break-word',
-                              boxShadow: isMine ? '0 1px 3px rgba(16, 42, 67, 0.12)' : '0 1px 2px rgba(16, 42, 67, 0.08)',
-                              border: isMine ? '1px solid rgba(16, 42, 67, 0.08)' : '1px solid rgba(16, 42, 67, 0.12)',
-                            }}
-                          >
-                            <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{message.content}</Text>
-                          </Box>
-                          {!isMine ? (
-                            <Text size="xs" c="dimmed" style={{ minWidth: 40, textAlign: 'left' }}>
-                              {timeLabel}
-                            </Text>
-                          ) : null}
-                        </Group>
+                        />
                       </div>
                     );
                   });
@@ -382,31 +275,7 @@ export default function ChatComponent({
 
           <Divider my="sm" />
 
-          <Stack gap="xs">
-            <Textarea
-              value={reply}
-              onChange={(event) => {
-                const newValue = event.currentTarget.value;
-                const isDeletion = newValue.length < reply.length;
-                setReply(newValue);
-                if (!isDeletion) {
-                  handleTyping();
-                }
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  if (event.shiftKey) {
-                    return;
-                  }
-                  event.preventDefault();
-                  handleSend();
-                }
-              }}
-              placeholder="Écrire..."
-              minRows={2}
-              autosize
-            />
-          </Stack>
+          <CreateChatMessageForm conversationId={conversationId} />
         </Stack>
       </Collapse>
     </Card>
