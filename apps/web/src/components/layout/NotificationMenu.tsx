@@ -4,7 +4,7 @@ import { IconBell } from '@tabler/icons-react';
 import { useRouter } from 'next/router';
 import { useNotifications, useNotificationSubscription, useMarkNotificationRead } from '@/hooks/useApi';
 import { useAuth } from '@/contexts/AuthContext';
-import { getNotificationText, getTimeAgo } from '@/lib/tools';
+import NotificationItem from './NotificationItem';
 import type { Notification } from '@/types';
 
 const NotificationMenu: FC = () => {
@@ -35,7 +35,7 @@ const NotificationMenu: FC = () => {
   };
 
   return (
-    <Menu shadow="md" width={320} position="bottom-end">
+    <Menu shadow="md" width={400} position="bottom-end">
       <Menu.Target>
         <UnstyledButton>
           <Group gap="xs" align="center">
@@ -61,21 +61,11 @@ const NotificationMenu: FC = () => {
             </Group>
           ) : (
             notifications.map((notification) => (
-              <Menu.Item key={notification.id} onClick={() => handleClick(notification)}>
-                <Group justify="apart" align="flex-start" style={{ width: '100%' }}>
-                  <div>
-                    <Text size="sm">{getNotificationText(notification)}</Text>
-                    <Text size="xs" c="dimmed">
-                      {getTimeAgo(new Date(notification.createdAt))}
-                    </Text>
-                  </div>
-                  {!notification.read && (
-                    <Badge color="orange" variant="light">
-                      new
-                    </Badge>
-                  )}
-                </Group>
-              </Menu.Item>
+              <NotificationItem
+                key={notification.id}
+                notification={notification}
+                onClick={() => handleClick(notification)}
+              />
             ))
           )}
         </ScrollArea>

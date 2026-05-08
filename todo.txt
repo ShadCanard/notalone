@@ -1,0 +1,5 @@
+- Conversations à plusieurs : Déplacer le système de messages d'un utilisateur à un groupe d'utilisateurs.
+- Reporting : Créer un objet "Reports" en base de données qui ciblera un post ou un commentaire et permettra à l'utilisateur de créer un signalement.
+- Admin : Créer la partie modération (Gestion des utilisateurs, Gestion des posts et commentaires, Signalements). Les posts et commentaires qui ont été supprimés seront entourés d'une bordure rouge.
+- Recherche (Utilisateur) Permet de rechercher un utilisateur, un post, ...
+- Recherche (Admin) Permet de rechercher un utilisateur, un post, y compris les utilisateurs et les posts supprimés.

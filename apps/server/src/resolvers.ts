@@ -133,54 +133,55 @@ export const resolvers = {
     conversations: async (_parent: unknown, args: { limit?: number; offset?: number }, context: Context) => {
       requireAuth(context);
       const userId = context.user.userId;
-      const messages = await prisma.message.findMany({
+      const conversations = await prisma.conversation.findMany({
         where: {
-          OR: [
-            { senderId: userId },
-            { receiverId: userId },
-          ],
+          participants: { some: { userId } },
         },
-        orderBy: { createdAt: 'desc' },
-        include: { sender: true, receiver: true, attachments: true },
+        include: {
+          participants: { include: { user: true } },
+          messages: {
+            include: { sender: true, receiver: true, attachments: true },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
+        },
       });
 
-      const unreadByPartner = new Map<string, number>();
-      for (const message of messages) {
-        if (message.receiverId === userId && !message.read) {
-          unreadByPartner.set(message.senderId, (unreadByPartner.get(message.senderId) ?? 0) + 1);
-        }
-      }
+      const counts = await prisma.message.groupBy({
+        by: ['conversationId'],
+        where: {
+          conversationId: { in: conversations.map((conversation) => conversation.id) },
+          receiverId: userId,
+          read: false,
+        },
+        _count: { id: true },
+      });
+      const unreadByConversation = new Map(counts.map((group) => [group.conversationId, group._count.id]));
 
-      const seen = new Set<string>();
-      const conversations = [] as Array<{
-        id: string;
-        partner: unknown;
-        lastMessage: { content: string; attachments: unknown[] };
-        lastMessageAt: string;
-        unreadCount: number;
-      }>;
-
-      for (const message of messages) {
-        const partner = message.senderId === userId ? message.receiver : message.sender;
-        const partnerId = partner.id;
-        if (seen.has(partnerId)) continue;
-        seen.add(partnerId);
-
-        conversations.push({
-          id: partnerId,
-          partner: sanitizeUserForPublic(partner, context),
-          lastMessage: {
-            content: message.content,
-            attachments: message.attachments ?? [],
-          },
-          lastMessageAt: message.createdAt.toISOString(),
-          unreadCount: unreadByPartner.get(partnerId) ?? 0,
-        });
-      }
+      const result = conversations
+        .map((conversation) => {
+          const partnerParticipant = conversation.participants.find((participant) => participant.userId !== userId);
+          const partner = partnerParticipant?.user ?? conversation.participants[0]?.user;
+          const lastMessage = conversation.messages[0] ?? null;
+          return {
+            id: partner?.id ?? conversation.id,
+            partner: partner ? sanitizeUserForPublic(partner, context) : null,
+            lastMessage: lastMessage
+              ? {
+                  content: lastMessage.content,
+                  attachments: lastMessage.attachments ?? [],
+                }
+              : { content: '', attachments: [] },
+            lastMessageAt: lastMessage?.createdAt.toISOString() ?? conversation.createdAt.toISOString(),
+            unreadCount: unreadByConversation.get(conversation.id) ?? 0,
+          };
+        })
+        .filter((item) => item.partner !== null)
+        .sort((a, b) => (a.lastMessageAt > b.lastMessageAt ? -1 : 1));
 
       const start = args.offset ?? 0;
       const size = args.limit ?? 50;
-      return conversations.slice(start, start + size);
+      return result.slice(start, start + size);
     },
 
     messages: async (_parent: unknown, args: { userId: string }, context: Context) => {
@@ -466,10 +467,50 @@ export const resolvers = {
 
     sendMessage: async (_parent: unknown, args: { receiverId: string; content: string; attachmentIds?: string[]; payload?: unknown }, context: Context) => {
       if (!context.user) throw new Error('Non authentifié');
+      const senderId = context.user.userId;
+      let conversation = await prisma.conversation.findFirst({
+        where: {
+          participants: {
+            some: { userId: senderId },
+          },
+        },
+        include: { participants: true },
+      });
+
+      if (!conversation || !conversation.participants.some((p) => p.userId === args.receiverId)) {
+        const existing = conversation;
+        if (!existing) {
+          conversation = await prisma.conversation.create({
+            data: {
+              participants: {
+                create: [
+                  { user: { connect: { id: senderId } } },
+                  { user: { connect: { id: args.receiverId } } },
+                ],
+              },
+            },
+          });
+        } else {
+          const needsReceiver = !existing.participants.some((p) => p.userId === args.receiverId);
+          if (needsReceiver) {
+            conversation = await prisma.conversation.update({
+              where: { id: existing.id },
+              data: {
+                participants: {
+                  create: [{ user: { connect: { id: args.receiverId } } }],
+                },
+              },
+              include: { participants: true },
+            });
+          }
+        }
+      }
+
       const data: unknown = {
         content: args.content,
-        senderId: context.user.userId,
+        senderId,
         receiverId: args.receiverId,
+        conversation: { connect: { id: conversation?.id } },
       };
       if (args.attachmentIds && args.attachmentIds.length > 0) {
         data.attachments = { connect: args.attachmentIds.map((id: string) => ({ id })) };

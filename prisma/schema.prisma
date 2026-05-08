@@ -37,6 +37,7 @@ model User {
   receivedMessages      Message[]      @relation("ReceivedMessages")
   receivedNotifications Notification[] @relation("NotificationsReceived")
   authoredNotifications Notification[] @relation("NotificationsAuthored")
+  conversationParticipants ConversationParticipant[]
 }
 
 model Post {
@@ -81,17 +82,39 @@ model Like {
 }
 
 model Message {
-  id        String   @id @default(uuid())
-  content   String
-  payload   Json?
-  read      Boolean  @default(false)
-  createdAt DateTime @default(now())
+  id             String       @id @default(uuid())
+  content        String
+  payload        Json?
+  read           Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  conversationId String?
 
   senderId   String
   sender     User   @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
   receiverId String
   receiver   User   @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  conversation Conversation? @relation(fields: [conversationId], references: [id])
   attachments Attachment[] @relation("MessageAttachments")
+}
+
+model Conversation {
+  id           String                    @id @default(uuid())
+  name         String?
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+  participants ConversationParticipant[]
+  messages     Message[]
+}
+
+model ConversationParticipant {
+  id             String       @id @default(uuid())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String
+  joinedAt       DateTime     @default(now())
+
+  @@unique([conversationId, userId])
 }
 
 model Attachment {
